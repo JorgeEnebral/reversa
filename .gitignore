@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[oc]
+
+# Virtual environment
+.venv
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Local data files
+*.db
+*.sqlite
+*.duckdb

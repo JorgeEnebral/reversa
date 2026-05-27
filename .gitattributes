@@ -1,0 +1,37 @@
+# Normalize all text files to LF in repo and on checkout.
+* text=auto eol=lf
+
+# ── Source ────────────────────────────────────────────────────────────────────
+*.py        text eol=lf
+*.ipynb     text eol=lf
+*.toml      text eol=lf
+*.lock      text eol=lf
+*.json      text eol=lf
+
+# ── Scripts ───────────────────────────────────────────────────────────────────
+*.sh        text eol=lf
+
+# ── Config and docs ───────────────────────────────────────────────────────────
+*.md        text eol=lf
+*.txt       text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.csv       text eol=lf
+*.tsv       text eol=lf
+*.html      text eol=lf
+*.svg       text eol=lf
+
+# ── Binaries — no line conversion, no text diff ───────────────────────────────
+*.pdf       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.parquet   binary
+*.arrow     binary
+*.db        binary
+*.sqlite    binary
+*.duckdb    binary
+*.zip       binary
+*.gz        binary
+*.tar       binary
