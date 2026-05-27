@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 htmlcov/
 .coverage
+.codegraph/
 
 # Secrets
 .env
@@ -21,3 +22,6 @@ htmlcov/
 *.db
 *.sqlite
 *.duckdb
+
+# uv
+uv.lock
