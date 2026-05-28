@@ -192,7 +192,7 @@ analisis
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `materia.codigo` | `NUMBER` | ✅ | Código de materia (vocabulario controlado de ~1300 entradas) |
-| `materia.texto` | `CHAR(200)` | ✅ | Descripción legible. Ej.: `Adopción`, `Seguridad Social` |
+| `materia.texto` | `CHAR(256)` | ✅ | Descripción legible. Ej.: `Adopción`, `Seguridad Social` |
 
 #### 2.3.2 `notas[]`
 

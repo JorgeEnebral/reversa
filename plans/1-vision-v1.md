@@ -118,10 +118,6 @@ Confirmado parseando respuestas reales. La descripción exhaustiva está en [`do
 - `texto/indice` (jerarquía Libro/Título/Capítulo/Artículo) → necesario para hacer chunking jerárquico.
 
 **Descartable (NO guardar):**
-- `diario` ("Boletín Oficial del Estado" — constante 99% de los casos; redundante con `ambito`).
-- `diario_numero` (rara vez se consulta; reconstruible desde `fecha_publicacion`).
-- `url_html_consolidada` (reconstruible desde `identificador` con `https://www.boe.es/buscar/act.php?id={id}`).
-- `fecha_actualizacion` solo lo necesitamos en la fase de ingesta incremental, no como propiedad permanente.
 - **Imágenes `<img>` en base64 dentro del texto** (cuando bajemos `/texto`): son enormes y aportan cero al razonamiento jurídico. Política: detectar, sustituir por placeholder `[IMG_OMITIDA]` y guardar metadata aparte si alguna vez hace falta.
 - `<table>` HTML embebido: lo dejamos como markdown convertido con `markdownify`, no como HTML crudo.
 
