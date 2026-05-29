@@ -5,5 +5,40 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "httpx>=0.28.1",
+    "lxml>=6.1.1",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
     "pypdf>=6.12.2",
+    "python-dotenv>=1.2.2",
+    "structlog>=25.5.0",
+    "typer>=0.26.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["integration: tests against the real BOE API (require internet)"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+
+[dependency-groups]
+dev = [
+    "complexipy>=5.5.0",
+    "mypy>=2.1.0",
+    "pip-audit>=2.10.0",
+    "pylint>=4.0.5",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "respx>=0.23.1",
+    "ruff>=0.15.15",
 ]

@@ -209,7 +209,7 @@ Mock HTTP con **`respx`** (mock nativo de httpx, sigue siendo la mejor opción i
 | `test_reintentar_recupera_y_borra` | unit | Reintentar éxito → fichero desaparece de `errors/`, aparece en `raw/` |
 | `test_reintentar_reporta_recuperados` | unit | Devuelve `(recuperados, total_intentados)` |
 | `test_selectivo_lista` | unit | Lista de IDs proporcionada se descarga; sin re-pedir listado completo |
-| `test_descarga_real_norma_conocida` | integration (`@pytest.mark.integration`) | Bajar Ley 39/2015 contra la API real, verificar que el XML contiene `<analisis>` |
+| `test_descarga_real_norma_conocida` | integration (`@pytest.mark.integration`) | Bajar Ley 39/2015 contra la API real, verificar que el XML contiene `<metadatos>`, `<analisis>`, `<texto>` |
 
 **Convención de carpetas de tests** (decisión del prompt):
 - Todas las descargas de tests van a `data_api/tests/raw/` y `data_api/tests/errors/`.
