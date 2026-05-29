@@ -106,7 +106,7 @@ Razones, verificadas con `curl` real contra `https://www.boe.es/datosabiertos/ap
 
 #### 1.2 Campos importantes vs descartables
 
-Confirmado parseando respuestas reales. La descripción exhaustiva está en [`docs/estructura_leyes.md`](../docs/estructura_leyes.md); aquí solo el resumen de qué guardar y qué tirar.
+Confirmado parseando respuestas reales. La descripción exhaustiva está en [`docs/estructura_leyes.md`](../docs/estructura_leyes-v2.md); aquí solo el resumen de qué guardar y qué tirar.
 
 **Imprescindible (guardar SIEMPRE):**
 - `metadatos`: `identificador`, `titulo`, `rango.codigo`, `fecha_disposicion`, `fecha_publicacion`, `fecha_vigencia`, `estatus_derogacion` (S/N), `fecha_derogacion`, `vigencia_agotada`, `estatus_anulacion`, `departamento.codigo`, `url_eli`, `numero_oficial`.
