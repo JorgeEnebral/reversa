@@ -55,14 +55,14 @@ test:
 	@echo "Checking if tests directory exists..."
 	@if [ -d "$(SRC_TESTS)" ] && [ $$(find $(SRC_TESTS) -name "test_*.py" | wc -l) -gt 0 ]; then \
 		echo "Running tests..."; \
-		$(UV) run pytest tests; \
+		$(UV) run pytest tests -m "not integration" --cov=$(SRC_PROJECT_NAME) --cov-report=term-missing --cov-fail-under=80; \
 		echo "Tests passed! ✅"; \
 	else \
 		echo "No tests directory found or no test files. Skipping tests."; \
 	fi
 
 # Run all workflows
-all: install format lint test clean
+all: install format check test clean
 	@echo "All tasks completed! ✅"
 
 # Removes .venv

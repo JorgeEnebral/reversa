@@ -56,7 +56,9 @@ class Chat:
                 )
             else:
                 # Claude ha terminado: respuesta de texto final sin más tool calls
-                final_text_response = self.claude_service.text_from_message(response)
+                final_text_response = self.claude_service.text_from_message(
+                    response
+                )
                 break
 
         return final_text_response

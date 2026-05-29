@@ -45,11 +45,11 @@ class Claude:
     def chat(
         self,
         messages,
-        system=None,          # System prompt opcional
-        temperature=1.0,       # Controla la aleatoriedad de la respuesta
-        stop_sequences=[],     # Secuencias de texto que detienen la generación
-        tools=None,            # Lista de tools en formato Anthropic que Claude puede invocar
-        thinking=False,        # Activa el modo "extended thinking" (razonamiento visible)
+        system=None,  # System prompt opcional
+        temperature=1.0,  # Controla la aleatoriedad de la respuesta
+        stop_sequences=[],  # Secuencias de texto que detienen la generación
+        tools=None,  # Lista de tools en formato Anthropic que Claude puede invocar
+        thinking=False,  # Activa el modo "extended thinking" (razonamiento visible)
         thinking_budget=1024,  # Tokens máximos reservados para el razonamiento interno
     ) -> Message:
         params = {
@@ -68,7 +68,9 @@ class Claude:
             }
 
         if tools:
-            params["tools"] = tools  # Claude usará stop_reason="tool_use" cuando quiera invocar una tool
+            params["tools"] = (
+                tools  # Claude usará stop_reason="tool_use" cuando quiera invocar una tool
+            )
 
         if system:
             params["system"] = system

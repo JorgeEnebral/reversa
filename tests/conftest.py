@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
-from config import APIConfig
+from src.config import APIConfig
 
 
 @pytest.fixture()
-def boe_test_dir(tmp_path: Path) -> Path:  # type: ignore[misc]
-    """Crea las carpetas de test y las borra al finalizar."""
-    base = tmp_path / "data_api"
+def boe_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
+    """Crea las carpetas raw/ y errors/ en un directorio temporal.
+
+    Se borra automáticamente al finalizar cada test.
+    """
+    base = tmp_path / "data/api"
     (base / "raw").mkdir(parents=True)
     (base / "errors").mkdir(parents=True)
     yield base
@@ -22,5 +26,5 @@ def boe_test_dir(tmp_path: Path) -> Path:  # type: ignore[misc]
 
 @pytest.fixture()
 def test_api_config(boe_test_dir: Path) -> APIConfig:
-    """APIConfig apuntando al directorio temporal de tests."""
+    """APIConfig apuntando al directorio temporal del test."""
     return APIConfig(data_dir=boe_test_dir)

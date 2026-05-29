@@ -1,6 +1,6 @@
 # Reversa — Plan arquitectónico v2 (1-vision-v2.md)
 
-> v2 sobre [`1-vision-v1.md`](./1-vision-v1.md). Las decisiones aquí **sobrescriben** a las de v1; lo que no se mencione, se mantiene.
+> v2 sobre [`vision-v1.md`]. Las decisiones aquí **sobrescriben** a las de v1; lo que no se mencione, se mantiene.
 >
 > Norte: **overfitting al GOAL.md**, a los 4 briefings. Cero overengineering.
 > **Sin contenedores** (Docker / testcontainers fuera).

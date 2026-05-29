@@ -25,3 +25,8 @@ htmlcov/
 
 # uv
 uv.lock
+
+# downloaded data
+data/api/raw/*
+!data/api/raw/1835/
+

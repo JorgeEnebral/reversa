@@ -3,7 +3,7 @@ Descarga masiva de legislación consolidada del BOE.
 
 Tres modos de uso:
   - descargar_masivo()       : pipeline completo, idempotente
-  - reintentar()             : reintenta los IDs en data_api/errors/
+  - reintentar()             : reintenta los IDs en data/api/errors/
   - descargar_selectivo(ids) : descarga una lista concreta de IDs
 """
 
@@ -11,16 +11,18 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import time
 from typing import Any
 
 import httpx
 import structlog
 from lxml import etree
+from tqdm import tqdm
 
-from config import APIConfig, API_CONFIG
+from src.config import APIConfig, API_CONFIG
 
 log = structlog.get_logger()
 
@@ -90,8 +92,10 @@ class BOEDownloader:
             log.info("listado_existente", total=len(ids))
 
         resumen = ResumenDescarga(total=len(ids))
-        for norm_id in ids:
-            self._procesar_id(norm_id, resumen)
+        with tqdm(ids, unit="norma", dynamic_ncols=True) as bar:
+            for norm_id in bar:
+                bar.set_postfix_str(norm_id, refresh=False)
+                self._procesar_id(norm_id, resumen)
 
         log.info(
             "descarga_masiva_completada",
@@ -103,7 +107,7 @@ class BOEDownloader:
         return resumen
 
     def reintentar(self) -> ResumenReintento:
-        """Reintenta todos los IDs en data_api/errors/.
+        """Reintenta todos los IDs en data/api/errors/.
 
         Para cada error: si tiene éxito, borra el fichero de error y guarda
         el XML. Si falla, incrementa el campo `attempts` en el JSON.
@@ -121,7 +125,7 @@ class BOEDownloader:
             norm_id: str = error_data["id"]
             try:
                 xml_bytes = self._descargar_xml(norm_id)
-                destino = self._ruta_xml(norm_id, xml_bytes)
+                destino = self._ruta_xml_por_id(norm_id)
                 destino.parent.mkdir(parents=True, exist_ok=True)
                 destino.write_bytes(xml_bytes)
                 error_file.unlink()
@@ -130,7 +134,9 @@ class BOEDownloader:
             except Exception as exc:  # noqa: BLE001
                 error_data["attempts"] = error_data.get("attempts", 1) + 1
                 error_data["error"] = str(exc)
-                error_file.write_text(json.dumps(error_data, ensure_ascii=False))
+                error_file.write_text(
+                    json.dumps(error_data, ensure_ascii=False)
+                )
                 log.warning("reintento_fallido", id=norm_id, error=str(exc))
 
         log.info(
@@ -173,7 +179,7 @@ class BOEDownloader:
         """Obtiene todos los IDs del listado de legislación ordenados por fecha ASC."""
         ids_con_fecha: list[dict[str, Any]] = []
         offset = 0
-        limit = 500
+        limit = 10_000
 
         while True:
             response = self._client.get(
@@ -190,7 +196,10 @@ class BOEDownloader:
                 break
 
             ids_con_fecha.extend(
-                {"id": item["identificador"], "fecha": item.get("fecha_publicacion", "")}
+                {
+                    "id": item["identificador"],
+                    "fecha": item.get("fecha_publicacion", ""),
+                }
                 for item in data
                 if "identificador" in item
             )
@@ -212,14 +221,13 @@ class BOEDownloader:
     def _procesar_id(self, norm_id: str, resumen: ResumenDescarga) -> None:
         """Descarga un único ID actualizando el resumen en lugar."""
         # Si ya existe en raw/, saltar
-        placeholder = self._ruta_xml_por_id(norm_id)
-        if placeholder.exists():
+        destino = self._ruta_xml_por_id(norm_id)
+        if destino.exists():
             resumen.saltados += 1
             return
 
         try:
             xml_bytes = self._descargar_xml(norm_id)
-            destino = self._ruta_xml(norm_id, xml_bytes)
             destino.parent.mkdir(parents=True, exist_ok=True)
             destino.write_bytes(xml_bytes)
             resumen.descargados += 1
@@ -234,6 +242,7 @@ class BOEDownloader:
             httpx.HTTPStatusError: Si el servidor devuelve un código de error.
             etree.XMLSyntaxError: Si la respuesta no es XML válido.
         """
+        time.sleep(self._cfg.wait)
         url = f"{self._cfg.base_url}{self._NORMA_ENDPOINT.format(id=norm_id)}"
         response = self._client.get(url, headers={"Accept": "application/xml"})
         response.raise_for_status()
@@ -242,29 +251,13 @@ class BOEDownloader:
         etree.fromstring(xml_bytes)
         return xml_bytes
 
-    def _ruta_xml(self, norm_id: str, xml_bytes: bytes) -> Path:
-        """Determina la ruta de destino raw/YYYY/{id}.xml extraído del XML."""
-        year = self._extraer_year(norm_id, xml_bytes)
-        return self._cfg.raw_dir / year / f"{norm_id}.xml"
-
     def _ruta_xml_por_id(self, norm_id: str) -> Path:
         """Ruta estimada para idempotencia, sin parsear el XML (usa el ID)."""
         year = _year_from_id(norm_id)
         return self._cfg.raw_dir / year / f"{norm_id}.xml"
 
-    def _extraer_year(self, norm_id: str, xml_bytes: bytes) -> str:
-        """Extrae el año de fecha_publicacion del XML, o lo infiere del ID."""
-        try:
-            root = etree.fromstring(xml_bytes)
-            fecha = root.findtext(".//fecha_publicacion") or ""
-            if len(fecha) >= 4:
-                return fecha[:4]
-        except etree.XMLSyntaxError:
-            pass
-        return _year_from_id(norm_id)
-
     def _persistir_error(self, norm_id: str, exc: Exception) -> None:
-        """Guarda el error de descarga en data_api/errors/{id}.json."""
+        """Guarda el error de descarga en data/api/errors/{id}.json."""
         self._cfg.errors_dir.mkdir(parents=True, exist_ok=True)
         status_code: int | None = None
         if isinstance(exc, httpx.HTTPStatusError):

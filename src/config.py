@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -18,7 +17,8 @@ class APIConfig(BaseSettings):
 
     base_url: str = "https://www.boe.es/datosabiertos/api"
     timeout: int = 30
-    data_dir: Path = Path("data_api")
+    wait: float = 0.0  # Tiempo de espera entre peticiones a base_url
+    data_dir: Path = Path("data/api")
 
     @property
     def raw_dir(self) -> Path:
@@ -30,7 +30,7 @@ class APIConfig(BaseSettings):
 
     @property
     def ids_file(self) -> Path:
-        return self.raw_dir / "ids.txt"
+        return self.data_dir / "ids.txt"
 
     model_config = {"frozen": True}
 
