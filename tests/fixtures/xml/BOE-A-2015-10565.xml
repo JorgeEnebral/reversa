@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<response>
+  <status>
+    <code>200</code>
+    <text>ok</text>
+  </status>
+  <data>
+    <metadatos>
+      <fecha_actualizacion>20251201T120000Z</fecha_actualizacion>
+      <identificador>BOE-A-2015-10565</identificador>
+      <ambito codigo="1">Estatal</ambito>
+      <departamento codigo="3681">Jefatura del Estado</departamento>
+      <rango codigo="1300">Ley</rango>
+      <fecha_disposicion>20151001</fecha_disposicion>
+      <numero_oficial>39/2015</numero_oficial>
+      <titulo>Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas.</titulo>
+      <diario>Boletín Oficial del Estado</diario>
+      <fecha_publicacion>20151002</fecha_publicacion>
+      <diario_numero>236</diario_numero>
+      <fecha_vigencia>20151002</fecha_vigencia>
+      <estatus_derogacion>N</estatus_derogacion>
+      <estatus_anulacion>N</estatus_anulacion>
+      <vigencia_agotada>N</vigencia_agotada>
+      <estado_consolidacion codigo="3">Finalizado</estado_consolidacion>
+      <url_eli>https://www.boe.es/eli/es/l/2015/10/01/39</url_eli>
+    </metadatos>
+    <analisis>
+      <materias>
+        <materia codigo="1270">Actos administrativos</materia>
+        <materia codigo="1680">Administración Pública</materia>
+        <materia codigo="3350">Ley de Procedimiento Administrativo</materia>
+      </materias>
+      <referencias>
+        <anteriores>
+          <anterior>
+            <id_norma>BOE-A-1992-26318</id_norma>
+            <relacion codigo="210">DEROGA</relacion>
+            <texto>la Ley 30/1992, de 26 de noviembre</texto>
+          </anterior>
+          <anterior>
+            <id_norma>BOE-A-2011-15032</id_norma>
+            <relacion codigo="270">MODIFICA</relacion>
+            <texto>varios artículos de la Ley 11/2011</texto>
+          </anterior>
+          <anterior>
+            <id_norma>BOE-A-2007-18875</id_norma>
+            <relacion codigo="440">DE CONFORMIDAD con</relacion>
+            <texto>el art. 105 de la Constitución</texto>
+          </anterior>
+        </anteriores>
+        <posteriores>
+          <posterior>
+            <id_norma>BOE-A-2020-3824</id_norma>
+            <relacion codigo="270">SE MODIFICA</relacion>
+            <texto>la disposición adicional primera, por Ley 3/2020</texto>
+          </posterior>
+        </posteriores>
+      </referencias>
+    </analisis>
+    <metadata-eli xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:eli="http://data.europa.eu/eli/ontology#">
+      <rdf:RDF>
+        <eli:LegalResource rdf:about="https://www.boe.es/eli/es/l/2015/10/01/39"/>
+      </rdf:RDF>
+    </metadata-eli>
+    <texto>
+      <bloque id="preambulo" tipo="preambulo">
+        <p class="parrafo">Texto de ejemplo.</p>
+      </bloque>
+    </texto>
+  </data>
+</response>

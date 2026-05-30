@@ -17,7 +17,7 @@ def boe_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
 
     Se borra automáticamente al finalizar cada test.
     """
-    base = tmp_path / "data/api"
+    base = tmp_path / "ontology/kinetic-layer/tests/api_boe"
     (base / "raw").mkdir(parents=True)
     (base / "errors").mkdir(parents=True)
     yield base

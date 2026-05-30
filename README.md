@@ -6,7 +6,7 @@ Data is ingested from the [BOE open API](https://www.boe.es/datosabiertos) and m
 
 ---
 
-## Setup
+## Setup Replicar entorno
 
 **1. Install uv**
 
@@ -20,9 +20,16 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 **2. Install dependencies**
 
+# Sincronizar librerias
 ```bash
-uv sync
+make install
 ```
+
+make clean -> limpia caches
+make remove_venv -> elimina venv
+
+
+INSTALAR BBDD NEO4J (LINUX)
 
 # 1. Java 21 (Neo4j 5 lo requiere)
 sudo apt update
@@ -30,10 +37,9 @@ sudo apt install -y openjdk-21-jre-headless
 
 # 2. Repo oficial de Neo4j
 sudo mkdir -p /etc/apt/keyrings
-wget -qO - https://debian.neo4j.com/neotechnology.gpg.key \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/neotechnology.gpg
-echo 'deb [signed-by=/etc/apt/keyrings/neotechnology.gpg] https://debian.neo4j.com stable 5' \
-  | sudo tee /etc/apt/sources.list.d/neo4j.list
+
+wget -qO - https://debian.neo4j.com/neotechnology.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/neotechnology.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/neotechnology.gpg] https://debian.neo4j.com stable 5' | sudo tee /etc/apt/sources.list.d/neo4j.list
 
 # 3. Instalar Neo4j Community 5
 sudo apt update
@@ -43,9 +49,18 @@ sudo apt install -y neo4j
 sudo neo4j-admin dbms set-initial-password '<PASSWORD>'
 
 # 5. Arrancar (en WSL no hay systemd por defecto; usar el servicio directo)
-sudo service neo4j start
-sudo service neo4j status     # debe mostrar "running"
+sudo service neo4j start    # arrancar
+sudo service neo4j stop     # parar (limpio)
+sudo service neo4j restart  # reiniciar
+sudo service neo4j status   # ver estado
 
-# 6. Comprobar acceso
-#    HTTP browser: http://localhost:7474  (usuario neo4j / contraseña anterior)
-#    Bolt:         bolt://localhost:7687
+SE REQUIERE UN FICHERO .ENV CON LAS SIGUIENTES VARIABLES:
+NEO4J__URI=bolt://localhost:7687
+NEO4J__USER=neo4j
+NEO4J__PASSWORD=...
+NEO4J__DATABASE=neo4j
+
+# Para conectarse a Neo4j
+cypher-shell -u neo4j -p NEO4J__PASSWORD
+SHOW DATABASES
+:exit

@@ -3,7 +3,7 @@ Descarga masiva de legislación consolidada del BOE.
 
 Tres modos de uso:
   - descargar_masivo()       : pipeline completo, idempotente
-  - reintentar()             : reintenta los IDs en data/api/errors/
+  - reintentar()             : reintenta los IDs en ontology/kinetic-layer/api_boe/errors/
   - descargar_selectivo(ids) : descarga una lista concreta de IDs
 """
 
@@ -70,6 +70,7 @@ class BOEDownloader:
 
     def descargar_masivo(self, force: bool = False) -> ResumenDescarga:
         """Pipeline completo de descarga. Idempotente.
+        Descarga en ontology/kinetic-layer/api_boe/raw/
 
         Si ids.txt ya existe, no repide el listado (a menos que force=True).
         Si un XML ya existe en raw/, lo salta.
@@ -107,7 +108,7 @@ class BOEDownloader:
         return resumen
 
     def reintentar(self) -> ResumenReintento:
-        """Reintenta todos los IDs en data/api/errors/.
+        """Reintenta todos los IDs en ontology/kinetic-layer/api_boe/errors/.
 
         Para cada error: si tiene éxito, borra el fichero de error y guarda
         el XML. Si falla, incrementa el campo `attempts` en el JSON.
@@ -257,7 +258,7 @@ class BOEDownloader:
         return self._cfg.raw_dir / year / f"{norm_id}.xml"
 
     def _persistir_error(self, norm_id: str, exc: Exception) -> None:
-        """Guarda el error de descarga en data/api/errors/{id}.json."""
+        """Guarda el error de descarga en ontology/kinetic-layer/api_boe/errors/{id}.json."""
         self._cfg.errors_dir.mkdir(parents=True, exist_ok=True)
         status_code: int | None = None
         if isinstance(exc, httpx.HTTPStatusError):

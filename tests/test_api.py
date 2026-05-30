@@ -71,7 +71,7 @@ def test_lista_ids_ordenada_por_fecha(test_api_config: APIConfig) -> None:
 
 @respx.mock
 def test_lista_ids_persiste_en_txt(test_api_config: APIConfig) -> None:
-    """El listado se persiste en raw/ids.txt, un ID por línea."""
+    """El listado se persiste en api_boe/ids.txt, un ID por línea."""
     items: list[dict[str, str]] = [
         {"identificador": NORM_ID, "fecha_publicacion": "20150730"}
     ]
