@@ -13,7 +13,7 @@ from src.preprocess import Preprocesador
 
 def main() -> None:
     """Ejecuta el pipeline completo de Reversa."""
-    
+
     resumen_downloader = BOEDownloader().descargar_masivo()
     print(
         f"Descarga completada: {resumen_downloader.descargados} descargados, "
@@ -21,7 +21,7 @@ def main() -> None:
         f"{resumen_downloader.fallidos} fallidos "
         f"(total: {resumen_downloader.total})"
     )
-    
+
     resumen_preprocesador = Preprocesador().preprocesar_todo()
     print(
         f"Preprocesado completado: "
@@ -30,7 +30,7 @@ def main() -> None:
         f"{resumen_preprocesador.errores} fallidos, "
         f"(total: {resumen_preprocesador.procesadas})"
     )
-    
+
 
 if __name__ == "__main__":
     main()

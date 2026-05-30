@@ -1,14 +1,13 @@
 """
 Configuración centralizada de Reversa.
 
-APIConfig/API_CONFIG se mantienen para src/api.py (Hito 1, ya implementado).
+APIConfig/API_CONFIG se mantienen para src/api.py
 Settings agrega la configuración de Hitos 2-4: preprocesado, Neo4j, LLM y ontología.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -46,9 +45,6 @@ class APIConfig(BaseSettings):
     model_config = {"frozen": True}
 
 
-API_CONFIG = APIConfig()
-
-
 # --------------------------------------------------------------------------- #
 # Hito 2: Preprocesado — flags de parseo                                      #
 # --------------------------------------------------------------------------- #
@@ -61,12 +57,12 @@ class PreprocessConfig(BaseModel):
     semantic_subdir: str = "semantic-layer"
     kinetic_subdir: str = "kinetic-layer"
     dynamic_subdir: str = "dynamic-layer"
-    
+
     @property
     def errors_dir(self) -> Path:
         """Directorio de errores de descarga."""
         return self.ontology_dir / self.kinetic_subdir / "preprocess" / "errors"
-    
+
 
 class MetadatosFlags(BaseModel):
     """Controla qué campos de <metadatos> se extraen al modelo Norma.
@@ -75,27 +71,27 @@ class MetadatosFlags(BaseModel):
     Los tres estatus (derogacion, anulacion, vigencia_agotada) se combinan
     para calcular el campo derivado `vigente` del nodo Neo4j.
     """
-    
+
     id: bool = True
     fecha_actualizacion: bool = True
     ambito: bool = True
     departamento: bool = True
     rango: bool = True
     fecha_disposicion: bool = True
-    numero_oficial: bool = False
+    numero_oficial: bool = True
     titulo: bool = True
     diario: bool = True
     fecha_publicacion: bool = True
-    diario_numero: bool = False
+    diario_numero: bool = True
     fecha_vigencia: bool = True
     estatus_derogacion: bool = True
-    fecha_derogacion: bool = False
+    fecha_derogacion: bool = True
     estatus_anulacion: bool = True
-    fecha_anulacion: bool = False
+    fecha_anulacion: bool = True
     vigencia_agotada: bool = True
-    estado_consolidacion: bool = False
-    url_eli: bool = False
-    url_html_consolidada: bool = False
+    estado_consolidacion: bool = True
+    url_eli: bool = True
+    url_html_consolidada: bool = True
 
 
 class AnalisisFlags(BaseModel):
@@ -136,31 +132,14 @@ class ParseFlags(BaseModel):
 class RelacionConfig(BaseModel):
     """Mapeo codigo_relacion → TYPE Cypher.
 
-    Los 20 códigos cubren los 4 briefings del Consejo. Los ~33 restantes
-    del catálogo BOE (correcciones, recursos TC, anulaciones...) se ignoran.
+    Los 3 códigos cubren los 4 briefings del Consejo. Los 47 restantes
+    del catálogo BOE se ignoran.
     """
 
     codigos_a_relacion: dict[int, str] = {
         210: "DEROGA",
-        211: "DEROGA_LO_INDICADO",
-        212: "DEROGA_CON_EXCEPCION",
-        213: "DEROGA_EN_CUANTO_SE_OPONGA",
-        214: "DEROGA_EN_FORMA_INDICADA",
-        215: "DEROGA_PARCIALMENTE",
-        216: "DEROGA_REITERADA",
-        217: "DEROGA_TACITAMENTE",
         270: "MODIFICA",
-        271: "MODIFICA_PLAN",
-        272: "MODIFICA_DET",
-        235: "SUPRIME",
-        245: "SUSTITUYE",
-        407: "AÑADE",
         330: "CITA",
-        331: "EN_RELACION_CON",
-        490: "DESARROLLA",
-        420: "APRUEBA",
-        426: "TRANSPONE",
-        427: "TRANSPONE_PARCIALMENTE",
     }
 
 

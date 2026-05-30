@@ -7,6 +7,7 @@ mockea con pytest-mock en el import site src.preprocess.GraphDatabase.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -16,18 +17,16 @@ from src.config import (
     AnalisisFlags,
     MetadatosFlags,
     ParseFlags,
-    RelacionConfig,
+    Settings,
     settings,
 )
 from src.preprocess import (
     Preprocesador,
-    Referencia,
     parse_xml,
     regenerar_esquemas_semanticos,
     render_md_edge,
     render_md_norma,
 )
-import json
 
 FIXTURES = Path(__file__).parent / "fixtures" / "xml"
 FIXTURE_39 = FIXTURES / "BOE-A-2015-10565.xml"
@@ -108,19 +107,25 @@ def test_parser_bloque_padre_false_ignora_hijos() -> None:
     assert norma.vigente is None
 
 
-def test_parser_vigente_calculado_correctamente(flags_default: ParseFlags) -> None:
+def test_parser_vigente_calculado_correctamente(
+    flags_default: ParseFlags,
+) -> None:
     """vigente=True cuando los tres estatus son 'N'."""
     norma = parse_xml(FIXTURE_39, flags_default)
     assert norma.vigente is True
 
 
-def test_parser_vigente_false_cuando_derogada(flags_default: ParseFlags) -> None:
+def test_parser_vigente_false_cuando_derogada(
+    flags_default: ParseFlags,
+) -> None:
     """vigente=False cuando estatus_derogacion='S'."""
     norma = parse_xml(FIXTURE_30, flags_default)
     assert norma.vigente is False
 
 
-def test_parser_ignora_referencias_posteriores(flags_default: ParseFlags) -> None:
+def test_parser_ignora_referencias_posteriores(
+    flags_default: ParseFlags,
+) -> None:
     """referencias_anteriores solo contiene las de <anteriores>, nunca <posteriores>."""
     norma = parse_xml(FIXTURE_39, flags_default)
 
@@ -129,7 +134,9 @@ def test_parser_ignora_referencias_posteriores(flags_default: ParseFlags) -> Non
     assert "BOE-A-2020-3824" not in ids_referenciados
 
 
-def test_parser_filtra_codigos_no_configurados(flags_default: ParseFlags) -> None:
+def test_parser_filtra_codigos_no_configurados(
+    flags_default: ParseFlags,
+) -> None:
     """Código 440 (DE CONFORMIDAD con) está en referencias_anteriores pero no en codigos_a_relacion."""
     norma = parse_xml(FIXTURE_39, flags_default)
     codigos = {r.relacion_codigo for r in norma.referencias_anteriores}
@@ -161,16 +168,23 @@ def test_parser_materias_none_si_flag_false() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_parser_fecha_disposicion_formato_iso(flags_default: ParseFlags) -> None:
+def test_parser_fecha_disposicion_formato_iso(
+    flags_default: ParseFlags,
+) -> None:
     """fecha_disposicion se convierte de YYYYMMDD a YYYY-MM-DD."""
     norma = parse_xml(FIXTURE_39, flags_default)
     assert norma.fecha_disposicion == "2015-10-01"
 
 
-def test_parser_referencias_anteriores_contiene_cita(flags_default: ParseFlags) -> None:
+def test_parser_referencias_anteriores_contiene_cita(
+    flags_default: ParseFlags,
+) -> None:
     """Código 210 (DEROGA) se parsea en referencias_anteriores."""
     norma = parse_xml(FIXTURE_39, flags_default)
-    deroga = next((r for r in norma.referencias_anteriores if r.relacion_codigo == 210), None)
+    deroga = next(
+        (r for r in norma.referencias_anteriores if r.relacion_codigo == 210),
+        None,
+    )
     assert deroga is not None
     assert deroga.id_norma == "BOE-A-1992-26318"
     assert "30/1992" in deroga.texto
@@ -183,13 +197,12 @@ def test_parser_referencias_anteriores_contiene_cita(flags_default: ParseFlags) 
 
 def test_orden_temporal_estable(tmp_path: Path) -> None:
     """Los XMLs se procesan en orden de directorio (alfabético por año + nombre)."""
-    year_dir = tmp_path / "1992"
-    year_dir.mkdir()
-    # Copiar dos XMLs de fixture a un directorio de prueba
     import shutil
 
+    year_dir = tmp_path / "1992"
+    year_dir.mkdir()
     shutil.copy(FIXTURE_30, year_dir / "BOE-A-1992-26318.xml")
-    shutil.copy(FIXTURE_39, tmp_path / "BOE-A-2015-10565.xml")  # año incorrecto, pero ok
+    shutil.copy(FIXTURE_39, tmp_path / "BOE-A-2015-10565.xml")
 
     year_dirs = sorted(p for p in tmp_path.iterdir() if p.is_dir())
     all_xmls = [f for d in year_dirs for f in sorted(d.glob("*.xml"))]
@@ -202,7 +215,9 @@ def test_orden_temporal_estable(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_regenerar_esquemas_borra_y_recrea_semantic_layer(tmp_path: Path) -> None:
+def test_regenerar_esquemas_borra_y_recrea_semantic_layer(
+    tmp_path: Path,
+) -> None:
     """semantic-layer se borra y se regenera con nodo norma + aristas."""
     regenerar_esquemas_semanticos(base_dir=tmp_path)
 
@@ -212,7 +227,9 @@ def test_regenerar_esquemas_borra_y_recrea_semantic_layer(tmp_path: Path) -> Non
 
     for rel_type in settings.relacion.codigos_a_relacion.values():
         nombre = rel_type.lower()
-        assert (sem / "humans" / "edges" / f"{nombre}.md").exists(), f"falta {nombre}.md"
+        assert (sem / "humans" / "edges" / f"{nombre}.md").exists(), (
+            f"falta {nombre}.md"
+        )
         assert (sem / "agents" / "edges" / f"{nombre}.json").exists()
 
 
@@ -239,10 +256,10 @@ def test_regenerar_esquemas_no_toca_dynamic_layer(tmp_path: Path) -> None:
 
 def test_regenerar_schema_json_es_valido(tmp_path: Path) -> None:
     """node.norma.schema.json se puede parsear como JSON válido."""
-    import json
-
     regenerar_esquemas_semanticos(base_dir=tmp_path)
-    raw = (tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json").read_text()
+    raw = (
+        tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json"
+    ).read_text()
     schema = json.loads(raw)
     assert schema.get("type") == "object"
     assert "properties" in schema
@@ -293,32 +310,36 @@ def test_render_md_edge_contiene_rel_type() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_neo4j_driver_se_instancia_con_config(mocker: pytest.MockerFixture) -> None:
+def test_neo4j_driver_se_instancia_con_config(
+    mocker: pytest.MockerFixture, test_preprocess_settings: Settings
+) -> None:
     """El Preprocesador llama a GraphDatabase.driver con URI y credenciales de settings."""
     mock_gdb = mocker.patch("src.preprocess.GraphDatabase.driver")
 
-    Preprocesador()
+    Preprocesador(config=test_preprocess_settings)
 
     mock_gdb.assert_called_once_with(
-        settings.neo4j.uri,
-        auth=(settings.neo4j.user, settings.neo4j.password),
+        test_preprocess_settings.neo4j.uri,
+        auth=(
+            test_preprocess_settings.neo4j.user,
+            test_preprocess_settings.neo4j.password,
+        ),
     )
 
 
 def test_preprocesar_escribe_norma_con_merge(
-    mock_driver: MagicMock, tmp_path: Path
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
 ) -> None:
     """preprocesar_todo emite una query MERGE sobre :Norma por cada XML."""
-    session = mock_driver.session.return_value.__enter__.return_value
-
-    # Crear estructura temporal de raw dir con un XML
-    raw_dir = tmp_path / "2015"
-    raw_dir.mkdir(parents=True)
     import shutil
 
+    session = mock_driver.session.return_value.__enter__.return_value
+
+    raw_dir = tmp_path / "2015"
+    raw_dir.mkdir(parents=True)
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
@@ -327,18 +348,18 @@ def test_preprocesar_escribe_norma_con_merge(
 
 
 def test_preprocesar_crea_arista_para_codigo_configurado(
-    mock_driver: MagicMock, tmp_path: Path
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
 ) -> None:
     """Para código 210 (DEROGA) se emite MERGE de arista."""
+    import shutil
+
     session = mock_driver.session.return_value.__enter__.return_value
 
     raw_dir = tmp_path / "2015"
     raw_dir.mkdir(parents=True)
-    import shutil
-
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
@@ -347,24 +368,25 @@ def test_preprocesar_crea_arista_para_codigo_configurado(
 
 
 def test_preprocesar_no_crea_arista_para_codigo_no_configurado(
-    mock_driver: MagicMock, tmp_path: Path
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
 ) -> None:
     """Código 440 (DE CONFORMIDAD con) no genera arista en Neo4j."""
+    import shutil
+
     session = mock_driver.session.return_value.__enter__.return_value
 
     raw_dir = tmp_path / "2015"
     raw_dir.mkdir(parents=True)
-    import shutil
-
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
-    # Ninguna query contiene 440 como TYPE ni como parámetro de relación
     calls = [str(c) for c in session.run.call_args_list]
-    assert not any("EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls)
+    assert not any(
+        "EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -373,7 +395,7 @@ def test_preprocesar_no_crea_arista_para_codigo_no_configurado(
 
 
 def test_error_xml_invalido_persiste_en_errors(
-    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
 ) -> None:
     """XML malformado → error guardado en errors/ con path y attempts=1."""
     raw_dir = tmp_path / "2015"
@@ -381,14 +403,9 @@ def test_error_xml_invalido_persiste_en_errors(
     bad_xml = raw_dir / "BAD-XML.xml"
     bad_xml.write_bytes(b"<roto><sin>cerrar")
 
-    errors_dir = tmp_path / "kinetic-layer" / "preprocess" / "errors"
-    mocker.patch.object(
-        type(settings.preprocess),
-        "errors_dir",
-        new_callable=lambda: property(lambda self: errors_dir),
-    )
+    errors_dir = test_preprocess_settings.preprocess.errors_dir
 
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     prep.api_raw_dir = tmp_path
     resumen = prep.preprocesar_todo()
 
@@ -396,22 +413,18 @@ def test_error_xml_invalido_persiste_en_errors(
     error_files = list(errors_dir.glob("*.json"))
     assert len(error_files) == 1
     data = json.loads(error_files[0].read_text())
-    assert data["attempts"] == 1
+    # preprocesar_todo llama a reintentar() internamente → attempts llega a 2
+    assert data["attempts"] == 2
     assert "path" in data
     assert "error" in data
 
 
 def test_reintentar_recupera_fichero_valido(
-    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+    mock_driver: MagicMock, test_preprocess_settings: Settings
 ) -> None:
     """Reintento exitoso: fichero de error desaparece y nodo se escribe en Neo4j."""
-    errors_dir = tmp_path / "errors"
-    errors_dir.mkdir(parents=True)
-    mocker.patch.object(
-        type(settings.preprocess),
-        "errors_dir",
-        new_callable=lambda: property(lambda self: errors_dir),
-    )
+    errors_dir = test_preprocess_settings.preprocess.errors_dir
+    errors_dir.mkdir(parents=True, exist_ok=True)
 
     error_data = {
         "path": str(FIXTURE_39),
@@ -422,7 +435,7 @@ def test_reintentar_recupera_fichero_valido(
     (errors_dir / "BOE-A-2015-10565.json").write_text(json.dumps(error_data))
 
     session = mock_driver.session.return_value.__enter__.return_value
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     resumen = prep.reintentar()
 
     assert resumen.recuperados == 1
@@ -433,16 +446,11 @@ def test_reintentar_recupera_fichero_valido(
 
 
 def test_reintentar_incrementa_attempts_en_fallo(
-    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
 ) -> None:
     """Reintento fallido: attempts sube y fichero de error sigue en errors/."""
-    errors_dir = tmp_path / "errors"
-    errors_dir.mkdir(parents=True)
-    mocker.patch.object(
-        type(settings.preprocess),
-        "errors_dir",
-        new_callable=lambda: property(lambda self: errors_dir),
-    )
+    errors_dir = test_preprocess_settings.preprocess.errors_dir
+    errors_dir.mkdir(parents=True, exist_ok=True)
 
     error_data = {
         "path": str(tmp_path / "no_existe.xml"),
@@ -453,7 +461,7 @@ def test_reintentar_incrementa_attempts_en_fallo(
     error_file = errors_dir / "no_existe.json"
     error_file.write_text(json.dumps(error_data))
 
-    prep = Preprocesador()
+    prep = Preprocesador(config=test_preprocess_settings)
     resumen = prep.reintentar()
 
     assert resumen.recuperados == 0

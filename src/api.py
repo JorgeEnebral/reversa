@@ -22,7 +22,7 @@ import structlog
 from lxml import etree
 from tqdm import tqdm
 
-from src.config import API_CONFIG, APIConfig, settings
+from src.config import APIConfig, settings
 
 log = structlog.get_logger()
 
@@ -60,7 +60,7 @@ class BOEDownloader:
     _LISTADO_ENDPOINT = "/legislacion-consolidada"
     _NORMA_ENDPOINT = "/legislacion-consolidada/id/{id}"
 
-    def __init__(self, config: APIConfig = API_CONFIG) -> None:
+    def __init__(self, config: APIConfig = settings.api) -> None:
         self._cfg = config
         self._client = httpx.Client(timeout=config.timeout)
 
@@ -107,6 +107,7 @@ class BOEDownloader:
             fallidos=resumen.fallidos,
             saltados=resumen.saltados,
         )
+        self.reintentar()
         return resumen
 
     def reintentar(self) -> ResumenReintento:

@@ -131,10 +131,10 @@ def test_descarga_id_404(test_api_config: APIConfig) -> None:
 
 
 @respx.mock
-def test_descarga_id_500_no_reintenta_internamente(
+def test_descarga_id_500_persiste_error(
     test_api_config: APIConfig,
 ) -> None:
-    """Un 500 va directo a errors/ con attempts=1, sin backoff interno."""
+    """Un 500 se persiste en errors/; descargar_masivo reintenta una vez al final."""
     items: list[dict[str, str]] = [
         {"identificador": NORM_ID, "fecha_publicacion": "20150730"}
     ]
@@ -148,7 +148,8 @@ def test_descarga_id_500_no_reintenta_internamente(
     data: dict[str, object] = json.loads(
         (test_api_config.errors_dir / f"{NORM_ID}.json").read_text()
     )
-    assert data["attempts"] == 1
+    # descargar_masivo llama a reintentar() internamente → attempts llega a 2
+    assert data["attempts"] == 2
     assert resumen.fallidos == 1
 
 
