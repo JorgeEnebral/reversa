@@ -8,7 +8,9 @@ Settings agrega la configuración de Hitos 2-4: preprocesado, Neo4j, LLM y ontol
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -44,6 +46,9 @@ class APIConfig(BaseSettings):
     model_config = {"frozen": True}
 
 
+API_CONFIG = APIConfig()
+
+
 # --------------------------------------------------------------------------- #
 # Hito 2: Preprocesado — flags de parseo                                      #
 # --------------------------------------------------------------------------- #
@@ -57,6 +62,11 @@ class PreprocessConfig(BaseModel):
     kinetic_subdir: str = "kinetic-layer"
     dynamic_subdir: str = "dynamic-layer"
     
+    @property
+    def errors_dir(self) -> Path:
+        """Directorio de errores de descarga."""
+        return self.ontology_dir / self.kinetic_subdir / "preprocess" / "errors"
+    
 
 class MetadatosFlags(BaseModel):
     """Controla qué campos de <metadatos> se extraen al modelo Norma.
@@ -65,6 +75,7 @@ class MetadatosFlags(BaseModel):
     Los tres estatus (derogacion, anulacion, vigencia_agotada) se combinan
     para calcular el campo derivado `vigente` del nodo Neo4j.
     """
+    
     id: bool = True
     fecha_actualizacion: bool = True
     ambito: bool = True
@@ -98,7 +109,6 @@ class AnalisisFlags(BaseModel):
     materias: bool = True
     notas: bool = False
     referencias_anteriores: bool = True
-    referencias_posteriores: bool = False
 
 
 class MetadataEliFlags(BaseModel):
@@ -162,6 +172,7 @@ class Neo4jConfig(BaseModel):
     password: str = ""
     database: str = "reversa"
 
+
 # --------------------------------------------------------------------------- #
 # Hito 3: LLM                                                                 #
 # --------------------------------------------------------------------------- #
@@ -203,7 +214,7 @@ class Settings(BaseSettings):
         frozen=True,
     )
 
-    api = APIConfig()
+    api: APIConfig = APIConfig()
     preprocess: PreprocessConfig = PreprocessConfig()
     parse: ParseFlags = ParseFlags()
     relacion: RelacionConfig = RelacionConfig()
@@ -211,4 +222,5 @@ class Settings(BaseSettings):
     llm: LLMConfig = LLMConfig()
 
 
+load_dotenv()
 settings = Settings()

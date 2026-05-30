@@ -22,7 +22,7 @@ import structlog
 from lxml import etree
 from tqdm import tqdm
 
-from src.config import APIConfig, API_CONFIG
+from src.config import API_CONFIG, APIConfig, settings
 
 log = structlog.get_logger()
 
@@ -86,20 +86,22 @@ class BOEDownloader:
         self._cfg.errors_dir.mkdir(parents=True, exist_ok=True)
 
         if not self._cfg.ids_file.exists() or force:
+            log.info("\nObteniendo ids...")
             ids = self._obtener_ids_ordenados()
             self._persistir_ids(ids, self._cfg.ids_file)
         else:
             ids = self._cfg.ids_file.read_text().splitlines()
-            log.info("listado_existente", total=len(ids))
+            log.info("\nListado existente", total=len(ids))
 
         resumen = ResumenDescarga(total=len(ids))
+        log.info("\nProcesando ids...")
         with tqdm(ids, unit="norma", dynamic_ncols=True) as bar:
             for norm_id in bar:
                 bar.set_postfix_str(norm_id, refresh=False)
                 self._procesar_id(norm_id, resumen)
 
         log.info(
-            "descarga_masiva_completada",
+            "\nDescarga masiva completada",
             total=resumen.total,
             descargados=resumen.descargados,
             fallidos=resumen.fallidos,
@@ -131,17 +133,17 @@ class BOEDownloader:
                 destino.write_bytes(xml_bytes)
                 error_file.unlink()
                 resumen.recuperados += 1
-                log.info("reintento_exitoso", id=norm_id)
+                log.info("\nReintento exitoso", id=norm_id)
             except Exception as exc:  # noqa: BLE001
                 error_data["attempts"] = error_data.get("attempts", 1) + 1
                 error_data["error"] = str(exc)
                 error_file.write_text(
                     json.dumps(error_data, ensure_ascii=False)
                 )
-                log.warning("reintento_fallido", id=norm_id, error=str(exc))
+                log.warning("\nReintento fallido", id=norm_id, error=str(exc))
 
         log.info(
-            "reintento_completado",
+            "\nReintento completado",
             recuperados=resumen.recuperados,
             total=resumen.total_intentados,
         )
@@ -164,7 +166,7 @@ class BOEDownloader:
             self._procesar_id(norm_id, resumen)
 
         log.info(
-            "descarga_selectiva_completada",
+            "\nDescarga selectiva completada",
             total=resumen.total,
             descargados=resumen.descargados,
             fallidos=resumen.fallidos,
@@ -204,7 +206,7 @@ class BOEDownloader:
                 for item in data
                 if "identificador" in item
             )
-            log.info("listado_pagina", offset=offset, obtenidos=len(data))
+            log.info("Listado pagina", offset=offset, obtenidos=len(data))
 
             if len(data) < limit:
                 break
@@ -217,7 +219,7 @@ class BOEDownloader:
         """Guarda los IDs en un fichero txt, uno por línea."""
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text("\n".join(ids))
-        log.info("ids_persistidos", total=len(ids), path=str(destino))
+        log.info("\nIds persistidos", total=len(ids), path=str(destino))
 
     def _procesar_id(self, norm_id: str, resumen: ResumenDescarga) -> None:
         """Descarga un único ID actualizando el resumen en lugar."""
@@ -273,7 +275,7 @@ class BOEDownloader:
             "attempts": 1,
         }
         error_path.write_text(json.dumps(payload, ensure_ascii=False))
-        log.warning("error_persistido", id=norm_id, error=str(exc))
+        log.warning("Error persistido", id=norm_id, error=str(exc))
 
 
 # ------------------------------------------------------------------ #

@@ -1,0 +1,27 @@
+{
+  "description": "Schema de una arista entre nodos :Norma.",
+  "properties": {
+    "relacion_codigo": {
+      "description": "Código de relación BOE (e.g. 210 = DEROGA)",
+      "title": "Relacion Codigo",
+      "type": "integer"
+    },
+    "relacion": {
+      "description": "Texto que define la relación (e.g. DEROGA)",
+      "title": "Relacion",
+      "type": "string"
+    },
+    "texto": {
+      "description": "Descripción libre del alcance de la relación",
+      "title": "Texto",
+      "type": "string"
+    }
+  },
+  "required": [
+    "relacion_codigo",
+    "relacion",
+    "texto"
+  ],
+  "title": "EdgeSchema",
+  "type": "object"
+}

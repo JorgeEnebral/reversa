@@ -27,4 +27,4 @@ def boe_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
 @pytest.fixture()
 def test_api_config(boe_test_dir: Path) -> APIConfig:
     """APIConfig apuntando al directorio temporal del test."""
-    return APIConfig(data_dir=boe_test_dir)
+    return APIConfig(ontology_dir=boe_test_dir)

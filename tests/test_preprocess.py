@@ -27,6 +27,7 @@ from src.preprocess import (
     render_md_edge,
     render_md_norma,
 )
+import json
 
 FIXTURES = Path(__file__).parent / "fixtures" / "xml"
 FIXTURE_39 = FIXTURES / "BOE-A-2015-10565.xml"
@@ -69,7 +70,7 @@ def test_parser_aplica_flags_true(flags_default: ParseFlags) -> None:
         "Común de las Administraciones Públicas."
     )
     assert norma.rango_codigo == 1300
-    assert norma.rango_texto == "Ley"
+    assert norma.rango == "Ley"
     assert norma.fecha_publicacion == "2015-10-02"
     assert norma.diario == "Boletín Oficial del Estado"
     assert norma.departamento_codigo == 3681
@@ -131,7 +132,7 @@ def test_parser_ignora_referencias_posteriores(flags_default: ParseFlags) -> Non
 def test_parser_filtra_codigos_no_configurados(flags_default: ParseFlags) -> None:
     """Código 440 (DE CONFORMIDAD con) está en referencias_anteriores pero no en codigos_a_relacion."""
     norma = parse_xml(FIXTURE_39, flags_default)
-    codigos = {r.codigo for r in norma.referencias_anteriores}
+    codigos = {r.relacion_codigo for r in norma.referencias_anteriores}
     assert 440 in codigos  # parse_xml NO filtra — lo filtra Preprocesador
 
     # Verificar que el RelacionConfig no tiene ese código
@@ -143,8 +144,8 @@ def test_parser_extrae_materias(flags_default: ParseFlags) -> None:
     norma = parse_xml(FIXTURE_39, flags_default)
 
     assert norma.materias_codigos == [1270, 1680, 3350]
-    assert norma.materias_textos is not None
-    assert "Administración Pública" in norma.materias_textos
+    assert norma.materias is not None
+    assert "Administración Pública" in norma.materias
 
 
 def test_parser_materias_none_si_flag_false() -> None:
@@ -152,7 +153,7 @@ def test_parser_materias_none_si_flag_false() -> None:
     flags = ParseFlags(analisis=AnalisisFlags(materias=False))
     norma = parse_xml(FIXTURE_39, flags)
     assert norma.materias_codigos is None
-    assert norma.materias_textos is None
+    assert norma.materias is None
 
 
 # --------------------------------------------------------------------------- #
@@ -169,7 +170,7 @@ def test_parser_fecha_disposicion_formato_iso(flags_default: ParseFlags) -> None
 def test_parser_referencias_anteriores_contiene_cita(flags_default: ParseFlags) -> None:
     """Código 210 (DEROGA) se parsea en referencias_anteriores."""
     norma = parse_xml(FIXTURE_39, flags_default)
-    deroga = next((r for r in norma.referencias_anteriores if r.codigo == 210), None)
+    deroga = next((r for r in norma.referencias_anteriores if r.relacion_codigo == 210), None)
     assert deroga is not None
     assert deroga.id_norma == "BOE-A-1992-26318"
     assert "30/1992" in deroga.texto
@@ -206,20 +207,19 @@ def test_regenerar_esquemas_borra_y_recrea_semantic_layer(tmp_path: Path) -> Non
     regenerar_esquemas_semanticos(base_dir=tmp_path)
 
     sem = tmp_path / "semantic-layer"
-    assert (sem / "nodes" / "node.norma.md").exists()
-    assert (sem / "nodes" / "node.norma.schema.json").exists()
+    assert (sem / "humans" / "nodes" / "norma.md").exists()
+    assert (sem / "agents" / "nodes" / "norma.json").exists()
 
-    # Al menos un par .md + .schema.json por cada relación configurada
     for rel_type in settings.relacion.codigos_a_relacion.values():
         nombre = rel_type.lower()
-        assert (sem / "edges" / f"{nombre}.md").exists(), f"falta {nombre}.md"
-        assert (sem / "edges" / f"{nombre}.schema.json").exists()
+        assert (sem / "humans" / "edges" / f"{nombre}.md").exists(), f"falta {nombre}.md"
+        assert (sem / "agents" / "edges" / f"{nombre}.json").exists()
 
 
 def test_regenerar_esquemas_sobreescribe_existente(tmp_path: Path) -> None:
     """Una segunda llamada borra el contenido anterior y regenera."""
     regenerar_esquemas_semanticos(base_dir=tmp_path)
-    stale = tmp_path / "semantic-layer" / "nodes" / "stale.md"
+    stale = tmp_path / "semantic-layer" / "humans" / "nodes" / "stale.md"
     stale.write_text("viejo")
 
     regenerar_esquemas_semanticos(base_dir=tmp_path)
@@ -242,7 +242,7 @@ def test_regenerar_schema_json_es_valido(tmp_path: Path) -> None:
     import json
 
     regenerar_esquemas_semanticos(base_dir=tmp_path)
-    raw = (tmp_path / "semantic-layer" / "nodes" / "node.norma.schema.json").read_text()
+    raw = (tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json").read_text()
     schema = json.loads(raw)
     assert schema.get("type") == "object"
     assert "properties" in schema
@@ -319,7 +319,7 @@ def test_preprocesar_escribe_norma_con_merge(
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
     prep = Preprocesador()
-    prep._RAW_DIR = tmp_path  # type: ignore[assignment]
+    prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
     calls = [str(c.args[0]) for c in session.run.call_args_list]
@@ -339,7 +339,7 @@ def test_preprocesar_crea_arista_para_codigo_configurado(
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
     prep = Preprocesador()
-    prep._RAW_DIR = tmp_path  # type: ignore[assignment]
+    prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
     calls = [str(c.args[0]) for c in session.run.call_args_list]
@@ -359,9 +359,105 @@ def test_preprocesar_no_crea_arista_para_codigo_no_configurado(
     shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
 
     prep = Preprocesador()
-    prep._RAW_DIR = tmp_path  # type: ignore[assignment]
+    prep.api_raw_dir = tmp_path
     prep.preprocesar_todo()
 
     # Ninguna query contiene 440 como TYPE ni como parámetro de relación
     calls = [str(c) for c in session.run.call_args_list]
     assert not any("EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls)
+
+
+# --------------------------------------------------------------------------- #
+# Errores y reintentos                                                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_error_xml_invalido_persiste_en_errors(
+    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+) -> None:
+    """XML malformado → error guardado en errors/ con path y attempts=1."""
+    raw_dir = tmp_path / "2015"
+    raw_dir.mkdir(parents=True)
+    bad_xml = raw_dir / "BAD-XML.xml"
+    bad_xml.write_bytes(b"<roto><sin>cerrar")
+
+    errors_dir = tmp_path / "kinetic-layer" / "preprocess" / "errors"
+    mocker.patch.object(
+        type(settings.preprocess),
+        "errors_dir",
+        new_callable=lambda: property(lambda self: errors_dir),
+    )
+
+    prep = Preprocesador()
+    prep.api_raw_dir = tmp_path
+    resumen = prep.preprocesar_todo()
+
+    assert resumen.errores == 1
+    error_files = list(errors_dir.glob("*.json"))
+    assert len(error_files) == 1
+    data = json.loads(error_files[0].read_text())
+    assert data["attempts"] == 1
+    assert "path" in data
+    assert "error" in data
+
+
+def test_reintentar_recupera_fichero_valido(
+    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+) -> None:
+    """Reintento exitoso: fichero de error desaparece y nodo se escribe en Neo4j."""
+    errors_dir = tmp_path / "errors"
+    errors_dir.mkdir(parents=True)
+    mocker.patch.object(
+        type(settings.preprocess),
+        "errors_dir",
+        new_callable=lambda: property(lambda self: errors_dir),
+    )
+
+    error_data = {
+        "path": str(FIXTURE_39),
+        "timestamp": "2026-05-30T08:00:00Z",
+        "error": "timeout",
+        "attempts": 1,
+    }
+    (errors_dir / "BOE-A-2015-10565.json").write_text(json.dumps(error_data))
+
+    session = mock_driver.session.return_value.__enter__.return_value
+    prep = Preprocesador()
+    resumen = prep.reintentar()
+
+    assert resumen.recuperados == 1
+    assert resumen.total_intentados == 1
+    assert not (errors_dir / "BOE-A-2015-10565.json").exists()
+    calls = [str(c.args[0]) for c in session.run.call_args_list]
+    assert any("MERGE (n:Norma" in c for c in calls)
+
+
+def test_reintentar_incrementa_attempts_en_fallo(
+    mock_driver: MagicMock, tmp_path: Path, mocker: pytest.MockerFixture
+) -> None:
+    """Reintento fallido: attempts sube y fichero de error sigue en errors/."""
+    errors_dir = tmp_path / "errors"
+    errors_dir.mkdir(parents=True)
+    mocker.patch.object(
+        type(settings.preprocess),
+        "errors_dir",
+        new_callable=lambda: property(lambda self: errors_dir),
+    )
+
+    error_data = {
+        "path": str(tmp_path / "no_existe.xml"),
+        "timestamp": "2026-05-30T08:00:00Z",
+        "error": "anterior",
+        "attempts": 1,
+    }
+    error_file = errors_dir / "no_existe.json"
+    error_file.write_text(json.dumps(error_data))
+
+    prep = Preprocesador()
+    resumen = prep.reintentar()
+
+    assert resumen.recuperados == 0
+    assert resumen.total_intentados == 1
+    assert error_file.exists()
+    data = json.loads(error_file.read_text())
+    assert data["attempts"] == 2

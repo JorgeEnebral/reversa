@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -18,10 +19,9 @@ import structlog
 from lxml import etree
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
+from tqdm import tqdm
 
 from src.config import (
-    APIConfig,
-    PreprocessConfig,
     AnalisisFlags,
     MetadatosFlags,
     ParseFlags,
@@ -83,6 +83,7 @@ class Norma:
     estatus_anulacion: str | None = None
     fecha_anulacion: str | None = None
     vigencia_agotada: str | None = None
+    vigente: bool | None = None
     estado_consolidacion_codigo: int | None = None
     estado_consolidacion: str | None = None
     url_eli: str | None = None
@@ -91,7 +92,7 @@ class Norma:
     materias: list[str] | None = None
     nota: str | None = None
     referencias_anteriores: list[Referencia] = field(default_factory=list)
-    referencias_posteriores: list[Referencia] | None = field(default_factory=list)
+    referencias_posteriores: list[Referencia] = field(default_factory=list)
 
 
 @dataclass
@@ -108,6 +109,18 @@ class ResumenPreproc:
     nodos_upsert: int = 0
     aristas_upsert: int = 0
     errores: int = 0
+
+
+@dataclass
+class ResumenReintento:
+    """Resultado de reintentar los errores pendientes.
+
+    Attributes:
+        recuperados: ficheros que se procesaron con éxito en el reintento.
+        total_intentados: total de errores encontrados en errors/.
+    """
+    recuperados: int = 0
+    total_intentados: int = 0
 
 
 # --------------------------------------------------------------------------- #
@@ -195,7 +208,7 @@ class EdgeSchema(BaseModel):
     """Schema de una arista entre nodos :Norma."""
 
     relacion_codigo: int = Field(description="Código de relación BOE (e.g. 210 = DEROGA)")
-    relacion: str = Field(description="Texto que define la relación (e.g. DEROGA = 210)")
+    relacion: str = Field(description="Texto que define la relación (e.g. DEROGA)")
     texto: str = Field(description="Descripción libre del alcance de la relación")
 
 
@@ -265,55 +278,63 @@ def _parse_metadatos(meta: Any, norma: Norma, flags: ParseFlags) -> None:
         return
 
     f = flags.metadatos
+    if f.fecha_actualizacion:
+        norma.fecha_actualizacion = meta.findtext("fecha_actualizacion")
+    if f.ambito:
+        amb = meta.find("ambito")
+        if amb is not None:
+            norma.ambito_codigo = _int_attr(amb, "codigo")
+            norma.ambito = amb.text
     if f.titulo:
         norma.titulo = meta.findtext("titulo")
     if f.diario:
         norma.diario = meta.findtext("diario")
+    if f.diario_numero:
+        raw = meta.findtext("diario_numero")
+        norma.diario_numero = int(raw) if raw else None
     if f.departamento:
         dep = meta.find("departamento")
         if dep is not None:
             norma.departamento_codigo = _int_attr(dep, "codigo")
-            norma.departamento_texto = dep.text
+            norma.departamento = dep.text
     if f.rango:
         rng = meta.find("rango")
         if rng is not None:
             norma.rango_codigo = _int_attr(rng, "codigo")
-            norma.rango_texto = rng.text
+            norma.rango = rng.text
     if f.fecha_disposicion:
-        norma.fecha_disposicion = _parse_date(
-            meta.findtext("fecha_disposicion")
-        )
-    if f.fecha_publicacion:
-        norma.fecha_publicacion = _parse_date(
-            meta.findtext("fecha_publicacion")
-        )
-    if f.fecha_vigencia:
-        norma.fecha_vigencia = _parse_date(meta.findtext("fecha_vigencia"))
-    if f.fecha_derogacion:
-        norma.fecha_derogacion = _parse_date(meta.findtext("fecha_derogacion"))
+        norma.fecha_disposicion = _parse_date(meta.findtext("fecha_disposicion"))
     if f.numero_oficial:
         norma.numero_oficial = meta.findtext("numero_oficial")
+    if f.fecha_publicacion:
+        norma.fecha_publicacion = _parse_date(meta.findtext("fecha_publicacion"))
+    if f.fecha_vigencia:
+        norma.fecha_vigencia = _parse_date(meta.findtext("fecha_vigencia"))
+    if f.estatus_derogacion:
+        norma.estatus_derogacion = meta.findtext("estatus_derogacion")
+    if f.fecha_derogacion:
+        norma.fecha_derogacion = _parse_date(meta.findtext("fecha_derogacion"))
+    if f.estatus_anulacion:
+        norma.estatus_anulacion = meta.findtext("estatus_anulacion")
+    if f.fecha_anulacion:
+        norma.fecha_anulacion = _parse_date(meta.findtext("fecha_anulacion"))
+    if f.vigencia_agotada:
+        norma.vigencia_agotada = meta.findtext("vigencia_agotada")
     if f.estatus_derogacion and f.estatus_anulacion and f.vigencia_agotada:
-        derogacion = meta.findtext("estatus_derogacion", "N")
-        anulacion = meta.findtext("estatus_anulacion", "N")
-        agotada = meta.findtext("vigencia_agotada", "N")
         norma.vigente = (
-            derogacion == "N" and anulacion == "N" and agotada == "N"
+            (norma.estatus_derogacion or "N") == "N"
+            and (norma.estatus_anulacion or "N") == "N"
+            and (norma.vigencia_agotada or "N") == "N"
         )
     if f.estado_consolidacion:
         ec = meta.find("estado_consolidacion")
         if ec is not None:
             norma.estado_consolidacion_codigo = _int_attr(ec, "codigo")
-            norma.estado_consolidacion_texto = ec.text
-    if f.judicialmente_anulada:
-        val = meta.findtext("judicialmente_anulada")
-        norma.judicialmente_anulada = val == "S" if val else False
+            norma.estado_consolidacion = ec.text
     if f.url_eli:
         norma.url_eli = meta.findtext("url_eli")
-    if f.url_epub:
-        norma.url_epub = meta.findtext("url_epub")
-    if f.url_pdf:
-        norma.url_pdf = meta.findtext("url_pdf")
+    if f.url_html_consolidada:
+        norma.url_html_consolidada = meta.findtext("url_html_consolidada")
 
 
 def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
@@ -329,10 +350,15 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
                 int(m.get("codigo", "0"))
                 for m in materias_el.findall("materia")
             ]
-            norma.materias_textos = [
+            norma.materias = [
                 m.text or "" for m in materias_el.findall("materia")
             ]
-
+    if f.notas:
+        notas_el = analisis_el.find("notas")
+        if notas_el is not None:
+            norma.nota = " ".join(
+                n.text or "" for n in notas_el.findall("nota")
+            ).strip() or None
     if f.referencias_anteriores:
         anteriores = analisis_el.find("referencias/anteriores")
         if anteriores is not None:
@@ -341,7 +367,8 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
                 norma.referencias_anteriores.append(
                     Referencia(
                         id_norma=ant.findtext("id_norma", ""),
-                        codigo=_int_attr(rel_el, "codigo") or 0,
+                        relacion_codigo=_int_attr(rel_el, "codigo") or 0,
+                        relacion=rel_el.text or "" if rel_el is not None else "",
                         texto=ant.findtext("texto", ""),
                     )
                 )
@@ -351,173 +378,36 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
 # Generación de esquemas semánticos                                           #
 # --------------------------------------------------------------------------- #
 
-# Metadatos de cada campo de Norma para el .md
-# (flag_attr, campo_md, tipo, obligatorio, descripcion, ejemplo)
 _NORMA_MD_FIELDS: list[tuple[str, str, str, str, str, str]] = [
-    (
-        "identificador",
-        "id",
-        "string",
-        "sí",
-        "Identificador BOE",
-        "`BOE-A-2015-10565`",
-    ),
-    (
-        "titulo",
-        "titulo",
-        "string",
-        "no",
-        "Título oficial de la norma",
-        "`Ley 39/2015...`",
-    ),
-    (
-        "diario",
-        "diario",
-        "string",
-        "no",
-        "Nombre del boletín oficial",
-        "`Boletín Oficial del Estado`",
-    ),
-    (
-        "departamento",
-        "departamento_codigo",
-        "int",
-        "no",
-        "Código del departamento emisor",
-        "`4435`",
-    ),
-    (
-        "departamento",
-        "departamento_texto",
-        "string",
-        "no",
-        "Nombre del departamento emisor",
-        "`Min. de Trabajo`",
-    ),
-    (
-        "rango",
-        "rango_codigo",
-        "int",
-        "no",
-        "Código del rango normativo",
-        "`1300`",
-    ),
-    (
-        "rango",
-        "rango_texto",
-        "string",
-        "no",
-        "Texto del rango normativo",
-        "`Ley`",
-    ),
-    (
-        "fecha_disposicion",
-        "fecha_disposicion",
-        "string",
-        "no",
-        "Fecha de disposición (YYYY-MM-DD)",
-        "`2015-10-01`",
-    ),
-    (
-        "fecha_publicacion",
-        "fecha_publicacion",
-        "string",
-        "no",
-        "Fecha de publicación en BOE (YYYY-MM-DD)",
-        "`2015-10-02`",
-    ),
-    (
-        "fecha_vigencia",
-        "fecha_vigencia",
-        "string",
-        "no",
-        "Fecha de entrada en vigor (YYYY-MM-DD)",
-        "`2015-10-02`",
-    ),
-    (
-        "fecha_derogacion",
-        "fecha_derogacion",
-        "string",
-        "no",
-        "Fecha de derogación (YYYY-MM-DD)",
-        "`2022-05-18`",
-    ),
-    (
-        "numero_oficial",
-        "numero_oficial",
-        "string",
-        "no",
-        "Número oficial de la norma",
-        "`39/2015`",
-    ),
-    # vigente: se incluye si los 3 estatus están activos
-    (
-        "estado_consolidacion",
-        "estado_consolidacion_codigo",
-        "int",
-        "no",
-        "Código del estado de consolidación",
-        "`3`",
-    ),
-    (
-        "estado_consolidacion",
-        "estado_consolidacion_texto",
-        "string",
-        "no",
-        "Texto del estado de consolidación",
-        "`Finalizado`",
-    ),
-    (
-        "judicialmente_anulada",
-        "judicialmente_anulada",
-        "bool",
-        "no",
-        "Anulada judicialmente",
-        "`false`",
-    ),
-    (
-        "url_eli",
-        "url_eli",
-        "string",
-        "no",
-        "URL ELI de la norma",
-        "`https://...`",
-    ),
-    (
-        "url_epub",
-        "url_epub",
-        "string",
-        "no",
-        "URL EPUB de la norma",
-        "`https://...`",
-    ),
-    (
-        "url_pdf",
-        "url_pdf",
-        "string",
-        "no",
-        "URL PDF de la norma",
-        "`https://...`",
-    ),
+    ("fecha_actualizacion", "fecha_actualizacion", "string", "no", "Fecha de última actualización ISO-8601", "`20251201T120000Z`"),
+    ("ambito", "ambito_codigo", "int", "no", "Código del ámbito territorial", "`1`"),
+    ("ambito", "ambito", "string", "no", "Texto del ámbito territorial", "`Estatal`"),
+    ("titulo", "titulo", "string", "no", "Título oficial de la norma", "`Ley 39/2015...`"),
+    ("diario", "diario", "string", "no", "Nombre del boletín oficial", "`Boletín Oficial del Estado`"),
+    ("diario_numero", "diario_numero", "int", "no", "Número del boletín oficial", "`236`"),
+    ("departamento", "departamento_codigo", "int", "no", "Código del departamento emisor", "`3681`"),
+    ("departamento", "departamento", "string", "no", "Nombre del departamento emisor", "`Jefatura del Estado`"),
+    ("rango", "rango_codigo", "int", "no", "Código del rango normativo", "`1300`"),
+    ("rango", "rango", "string", "no", "Texto del rango normativo", "`Ley`"),
+    ("fecha_disposicion", "fecha_disposicion", "string", "no", "Fecha de disposición (YYYY-MM-DD)", "`2015-10-01`"),
+    ("numero_oficial", "numero_oficial", "string", "no", "Número oficial de la norma", "`39/2015`"),
+    ("fecha_publicacion", "fecha_publicacion", "string", "no", "Fecha de publicación en BOE (YYYY-MM-DD)", "`2015-10-02`"),
+    ("fecha_vigencia", "fecha_vigencia", "string", "no", "Fecha de entrada en vigor (YYYY-MM-DD)", "`2015-10-02`"),
+    ("estatus_derogacion", "estatus_derogacion", "string", "no", "S/N — norma derogada", "`N`"),
+    ("fecha_derogacion", "fecha_derogacion", "string", "no", "Fecha de derogación (YYYY-MM-DD)", "`2022-05-18`"),
+    ("estatus_anulacion", "estatus_anulacion", "string", "no", "S/N — norma judicialmente anulada", "`N`"),
+    ("fecha_anulacion", "fecha_anulacion", "string", "no", "Fecha de anulación (YYYY-MM-DD)", "`2022-05-18`"),
+    ("vigencia_agotada", "vigencia_agotada", "string", "no", "S/N — vigencia agotada", "`N`"),
+    ("estado_consolidacion", "estado_consolidacion_codigo", "int", "no", "Código del estado de consolidación", "`3`"),
+    ("estado_consolidacion", "estado_consolidacion", "string", "no", "Texto del estado de consolidación", "`Finalizado`"),
+    ("url_eli", "url_eli", "string", "no", "URL ELI de la norma", "`https://...`"),
+    ("url_html_consolidada", "url_html_consolidada", "string", "no", "URL HTML de la versión consolidada", "`https://...`"),
 ]
 
 _ANALISIS_MD_FIELDS: list[tuple[str, str, str, str, str, str]] = [
-    (
-        "materias",
-        "materias_codigos",
-        "int[]",
-        "no",
-        "Códigos de materias temáticas",
-        "`[663, 821]`",
-    ),
-    (
-        "materias",
-        "materias_textos",
-        "string[]",
-        "no",
-        "Textos de materias temáticas",
-        '`["Formación..."]`',
-    ),
+    ("materias", "materias_codigos", "int[]", "no", "Códigos de materias temáticas", "`[1270, 1680]`"),
+    ("materias", "materias", "string[]", "no", "Textos de materias temáticas", '`["Administración Pública"]`'),
+    ("notas", "nota", "string", "no", "Nota libre del boletín", "`Publicada en el DOGC...`"),
 ]
 
 
@@ -542,7 +432,6 @@ def render_md_norma(flags: ParseFlags) -> str:
 
     if isinstance(flags.metadatos, MetadatosFlags):
         m = flags.metadatos
-        # vigente: campo derivado — se incluye si los 3 estatus están habilitados
         if m.estatus_derogacion and m.estatus_anulacion and m.vigencia_agotada:
             lines.append(
                 "| vigente | bool | no | "
@@ -591,41 +480,39 @@ def regenerar_esquemas_semanticos(base_dir: Path | None = None) -> None:
     """Borra y regenera el directorio semantic-layer a partir de los flags activos.
 
     El directorio dynamic-layer no se toca nunca.
+    .md se guardan en humans/, .json en agents/.
 
     Args:
         base_dir: directorio raíz de la ontología. Por defecto usa
-            settings.ontology.output_dir (útil para pasar tmp_path en tests).
+            settings.preprocess.ontology_dir (útil para pasar tmp_path en tests).
     """
-    out_dir = base_dir if base_dir is not None else settings.ontology.output_dir
-    sem = out_dir / settings.ontology.semantic_subdir
+    out_dir = base_dir if base_dir is not None else settings.preprocess.ontology_dir
+    sem = out_dir / settings.preprocess.semantic_subdir
 
     if sem.exists():
         shutil.rmtree(sem)
-    (sem / "nodes").mkdir(parents=True)
-    (sem / "edges").mkdir(parents=True)
 
-    (sem / "nodes" / "node.norma.md").write_text(
-        render_md_norma(settings.parse)
-    )
-    (sem / "nodes" / "node.norma.schema.json").write_text(
-        json.dumps(
-            NormaSchema.model_json_schema(), ensure_ascii=False, indent=2
-        )
+    humans_nodes = sem / "humans" / "nodes"
+    humans_edges = sem / "humans" / "edges"
+    agents_nodes = sem / "agents" / "nodes"
+    agents_edges = sem / "agents" / "edges"
+    for d in (humans_nodes, humans_edges, agents_nodes, agents_edges):
+        d.mkdir(parents=True)
+
+    (humans_nodes / "norma.md").write_text(render_md_norma(settings.parse))
+    (agents_nodes / "norma.json").write_text(
+        json.dumps(NormaSchema.model_json_schema(), ensure_ascii=False, indent=2)
     )
 
     for codigo, rel_type in settings.relacion.codigos_a_relacion.items():
         nombre = rel_type.lower()
-        (sem / "edges" / f"{nombre}.md").write_text(
-            render_md_edge(rel_type, codigo)
-        )
-        (sem / "edges" / f"{nombre}.schema.json").write_text(
-            json.dumps(
-                EdgeSchema.model_json_schema(), ensure_ascii=False, indent=2
-            )
+        (humans_edges / f"{nombre}.md").write_text(render_md_edge(rel_type, codigo))
+        (agents_edges / f"{nombre}.json").write_text(
+            json.dumps(EdgeSchema.model_json_schema(), ensure_ascii=False, indent=2)
         )
 
     log.info(
-        "esquemas_semanticos_regenerados",
+        "\nEsquemas semanticos creados",
         semantic_dir=str(sem),
         relaciones=len(settings.relacion.codigos_a_relacion),
     )
@@ -673,15 +560,18 @@ class Preprocesador:
         """
         resumen = ResumenPreproc()
         year_dirs = sorted(p for p in self.api_raw_dir.iterdir() if p.is_dir())
+        all_xmls = [f for d in year_dirs for f in sorted(d.glob("*.xml"))]
 
+        log.info("\nPreprocesando...")
         with self._driver.session(database=self._db) as s:
-            for year_dir in year_dirs:
-                for xml_path in sorted(year_dir.glob("*.xml")):
+            with tqdm(all_xmls, unit="norma", dynamic_ncols=True) as bar:
+                for xml_path in bar:
+                    bar.set_postfix_str(xml_path.stem, refresh=False)
                     self._procesar_fichero(xml_path, s, resumen)
 
         regenerar_esquemas_semanticos(base_dir=self._ontology_dir)
         log.info(
-            "preprocesado_completado",
+            "\nPreprocesado completado",
             procesadas=resumen.procesadas,
             nodos=resumen.nodos_upsert,
             aristas=resumen.aristas_upsert,
@@ -697,7 +587,8 @@ class Preprocesador:
         try:
             norma = parse_xml(xml_path, flags=settings.parse)
         except Exception as exc:  # noqa: BLE001
-            log.warning("error_parseando", path=str(xml_path), error=str(exc))
+            log.warning("Error parseando", path=str(xml_path), error=str(exc))
+            self._persistir_error(xml_path, exc)
             resumen.errores += 1
             return
 
@@ -705,14 +596,14 @@ class Preprocesador:
         resumen.nodos_upsert += 1
 
         for ref in norma.referencias_anteriores:
-            rel_type = settings.relacion.codigos_a_relacion.get(ref.codigo)
+            rel_type = settings.relacion.codigos_a_relacion.get(ref.relacion_codigo)
             if rel_type:
                 self._upsert_relacion(
                     session,
                     norma.id,
                     rel_type,
                     ref.id_norma,
-                    ref.codigo,
+                    ref.relacion_codigo,
                     ref.texto,
                 )
                 resumen.aristas_upsert += 1
@@ -723,13 +614,78 @@ class Preprocesador:
         props = {
             k: v
             for k, v in raw.items()
-            if k not in ("id", "referencias_anteriores") and v is not None
+            if k not in ("id", "referencias_anteriores", "referencias_posteriores")
+            and v is not None
         }
         session.run(
             "MERGE (n:Norma {id: $id}) SET n += $props",
             id=norma.id,
             props=props,
         )
+
+    def reintentar(self) -> ResumenReintento:
+        """Reintenta todos los XMLs en errors/.
+
+        Para cada error: si parsea con éxito, borra el fichero de error y escribe
+        en Neo4j. Si falla de nuevo, incrementa `attempts` en el JSON.
+
+        Returns:
+            ResumenReintento con recuperados y total_intentados.
+        """
+        errors_dir = settings.preprocess.errors_dir
+        errors_dir.mkdir(parents=True, exist_ok=True)
+
+        error_files = list(errors_dir.glob("*.json"))
+        resumen = ResumenReintento(total_intentados=len(error_files))
+
+        with self._driver.session(database=self._db) as s:
+            for error_file in error_files:
+                error_data = json.loads(error_file.read_text())
+                xml_path = Path(error_data["path"])
+                try:
+                    norma = parse_xml(xml_path, flags=settings.parse)
+                    self._upsert_norma(s, norma)
+                    for ref in norma.referencias_anteriores:
+                        rel_type = settings.relacion.codigos_a_relacion.get(
+                            ref.relacion_codigo
+                        )
+                        if rel_type:
+                            self._upsert_relacion(
+                                s,
+                                norma.id,
+                                rel_type,
+                                ref.id_norma,
+                                ref.relacion_codigo,
+                                ref.texto,
+                            )
+                    error_file.unlink()
+                    resumen.recuperados += 1
+                    log.info("Reintento Exitoso", path=str(xml_path))
+                except Exception as exc:  # noqa: BLE001
+                    error_data["attempts"] = error_data.get("attempts", 1) + 1
+                    error_data["error"] = str(exc)
+                    error_file.write_text(json.dumps(error_data, ensure_ascii=False))
+                    log.warning("Reintento fallido", path=str(xml_path), error=str(exc))
+
+        log.info(
+            "\nReintento completado",
+            recuperados=resumen.recuperados,
+            total=resumen.total_intentados,
+        )
+        return resumen
+
+    def _persistir_error(self, xml_path: Path, exc: Exception) -> None:
+        """Guarda el error de parseo en errors/{stem}.json."""
+        errors_dir = settings.preprocess.errors_dir
+        errors_dir.mkdir(parents=True, exist_ok=True)
+        error_path = errors_dir / f"{xml_path.stem}.json"
+        payload = {
+            "path": str(xml_path),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(exc),
+            "attempts": 1,
+        }
+        error_path.write_text(json.dumps(payload, ensure_ascii=False))
 
     def _upsert_relacion(
         self,

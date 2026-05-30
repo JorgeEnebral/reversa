@@ -27,6 +27,6 @@ htmlcov/
 uv.lock
 
 # downloaded data
-data/api/raw/*
-!data/api/raw/1835/
+ontology/kinetic-layer/api_boe/raw/*
+!ontology/kinetic-layer/api_boe/raw/1835/
 
