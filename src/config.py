@@ -163,6 +163,15 @@ class LLMConfig(BaseModel):
     model: str = "claude-haiku-4-5"
     max_tokens: int = 4000
     temperature: float = 0.2
+    max_tool_iters: int = 6
+
+
+class WebConfig(BaseModel):
+    """Config del servidor NiceGUI."""
+
+    host: str = "127.0.0.1"
+    port: int = 8080
+    title: str = "Reversa"
 
 
 # --------------------------------------------------------------------------- #
@@ -199,6 +208,7 @@ class Settings(BaseSettings):
     relacion: RelacionConfig = RelacionConfig()
     neo4j: Neo4jConfig = Neo4jConfig()
     llm: LLMConfig = LLMConfig()
+    web: WebConfig = WebConfig()
 
 
 load_dotenv()

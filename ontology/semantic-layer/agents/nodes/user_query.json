@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "description": "Schema del nodo :UserQuery — creado por el LLM en runtime.",
+  "properties": {
+    "id_nodo": {
+      "description": "Identificador único del nodo (UUID v4)",
+      "title": "Id Nodo",
+      "type": "string"
+    },
+    "user_id": {
+      "default": "unknown",
+      "description": "Identificador del usuario",
+      "title": "User Id",
+      "type": "string"
+    },
+    "user_prompt": {
+      "description": "Prompt en lenguaje natural enviado por el usuario",
+      "title": "User Prompt",
+      "type": "string"
+    },
+    "bbdd_query": {
+      "description": "Consultas Cypher generadas por el LLM a partir del prompt",
+      "items": {
+        "type": "string"
+      },
+      "title": "Bbdd Query",
+      "type": "array"
+    },
+    "answer": {
+      "description": "Respuesta en lenguaje natural devuelta al usuario",
+      "title": "Answer",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id_nodo",
+    "user_prompt",
+    "bbdd_query",
+    "answer"
+  ],
+  "title": "UserQuerySchema",
+  "type": "object"
+}

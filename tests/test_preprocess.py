@@ -22,10 +22,16 @@ from src.config import (
 )
 from src.preprocess import (
     Preprocesador,
+    generar_esquemas,
     parse_xml,
-    regenerar_esquemas_semanticos,
+)
+from src.schemas import (
+    ResultEdgeSchema,
+    UserQuerySchema,
     render_md_edge,
     render_md_norma,
+    render_md_result_edge,
+    render_md_user_query,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "xml"
@@ -219,7 +225,7 @@ def test_regenerar_esquemas_borra_y_recrea_semantic_layer(
     tmp_path: Path,
 ) -> None:
     """semantic-layer se borra y se regenera con nodo norma + aristas."""
-    regenerar_esquemas_semanticos(base_dir=tmp_path)
+    generar_esquemas(base_dir=tmp_path)
 
     sem = tmp_path / "semantic-layer"
     assert (sem / "humans" / "nodes" / "norma.md").exists()
@@ -235,11 +241,11 @@ def test_regenerar_esquemas_borra_y_recrea_semantic_layer(
 
 def test_regenerar_esquemas_sobreescribe_existente(tmp_path: Path) -> None:
     """Una segunda llamada borra el contenido anterior y regenera."""
-    regenerar_esquemas_semanticos(base_dir=tmp_path)
+    generar_esquemas(base_dir=tmp_path)
     stale = tmp_path / "semantic-layer" / "humans" / "nodes" / "stale.md"
     stale.write_text("viejo")
 
-    regenerar_esquemas_semanticos(base_dir=tmp_path)
+    generar_esquemas(base_dir=tmp_path)
     assert not stale.exists()
 
 
@@ -250,13 +256,13 @@ def test_regenerar_esquemas_no_toca_dynamic_layer(tmp_path: Path) -> None:
     custom = dyn / "node.query_usuario.md"
     custom.write_text("# Manual")
 
-    regenerar_esquemas_semanticos(base_dir=tmp_path)
+    generar_esquemas(base_dir=tmp_path)
     assert custom.read_text() == "# Manual"
 
 
 def test_regenerar_schema_json_es_valido(tmp_path: Path) -> None:
     """node.norma.schema.json se puede parsear como JSON válido."""
-    regenerar_esquemas_semanticos(base_dir=tmp_path)
+    generar_esquemas(base_dir=tmp_path)
     raw = (
         tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json"
     ).read_text()
@@ -306,6 +312,83 @@ def test_render_md_edge_contiene_rel_type() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Esquemas dinámicos                                                           #
+# --------------------------------------------------------------------------- #
+
+
+def test_user_query_schema_tiene_user_id_default_unknown() -> None:
+    """user_id tiene default 'unknown' cuando no se especifica."""
+    q = UserQuerySchema(
+        id_nodo="uuid-1",
+        user_prompt="¿Qué es la Ley 39/2015?",
+        bbdd_query=["MATCH (n:Norma) RETURN n"],
+        answer="Es la ley de procedimiento.",
+    )
+    assert q.user_id == "unknown"
+
+
+def test_user_query_schema_bbdd_query_es_lista() -> None:
+    """bbdd_query acepta múltiples consultas Cypher."""
+    q = UserQuerySchema(
+        id_nodo="uuid-2",
+        user_prompt="Pregunta",
+        bbdd_query=["MATCH (a) RETURN a", "MATCH (b) RETURN b"],
+        answer="Respuesta",
+    )
+    assert len(q.bbdd_query) == 2
+
+
+def test_result_edge_schema_tiene_campo_texto() -> None:
+    """ResultEdgeSchema requiere el campo texto."""
+    edge = ResultEdgeSchema(texto="Norma que regula el procedimiento")
+    assert edge.texto == "Norma que regula el procedimiento"
+
+
+def test_render_md_user_query_contiene_campos() -> None:
+    """El .md de UserQuery incluye los campos clave."""
+    md = render_md_user_query()
+    assert "UserQuery" in md
+    assert "bbdd_query" in md
+    assert "user_prompt" in md
+    assert "answer" in md
+
+
+def test_render_md_result_edge_contiene_texto() -> None:
+    """El .md de RESULT_EDGE incluye el campo texto."""
+    md = render_md_result_edge()
+    assert "RESULT_EDGE" in md
+    assert "texto" in md
+
+
+def test_generar_esquemas_incluye_user_query(tmp_path: Path) -> None:
+    """generar_esquemas escribe user_query.md y user_query.json."""
+    generar_esquemas(base_dir=tmp_path)
+    sem = tmp_path / "semantic-layer"
+    assert (sem / "humans" / "nodes" / "user_query.md").exists()
+    assert (sem / "agents" / "nodes" / "user_query.json").exists()
+
+
+def test_generar_esquemas_incluye_result_edge(tmp_path: Path) -> None:
+    """generar_esquemas escribe result_edge.md y result_edge.json."""
+    generar_esquemas(base_dir=tmp_path)
+    sem = tmp_path / "semantic-layer"
+    assert (sem / "humans" / "edges" / "result_edge.md").exists()
+    assert (sem / "agents" / "edges" / "result_edge.json").exists()
+
+
+def test_generar_esquemas_user_query_json_valido(tmp_path: Path) -> None:
+    """user_query.json es JSON Schema válido con additionalProperties:false."""
+    generar_esquemas(base_dir=tmp_path)
+    raw = (
+        tmp_path / "semantic-layer" / "agents" / "nodes" / "user_query.json"
+    ).read_text()
+    schema = json.loads(raw)
+    assert schema.get("type") == "object"
+    assert "properties" in schema
+    assert schema.get("additionalProperties") is False
+
+
+# --------------------------------------------------------------------------- #
 # Preprocesador con driver mockeado                                           #
 # --------------------------------------------------------------------------- #
 
@@ -325,6 +408,28 @@ def test_neo4j_driver_se_instancia_con_config(
             test_preprocess_settings.neo4j.password,
         ),
     )
+
+
+def test_preprocesar_limpia_grafo_al_inicio(
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
+) -> None:
+    """preprocesar_todo emite DETACH DELETE antes de cualquier MERGE."""
+    import shutil
+
+    session = mock_driver.session.return_value.__enter__.return_value
+
+    raw_dir = tmp_path / "2015"
+    raw_dir.mkdir(parents=True)
+    shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
+
+    prep = Preprocesador(config=test_preprocess_settings)
+    prep.api_raw_dir = tmp_path
+    prep.preprocesar_todo()
+
+    calls = [str(c.args[0]) for c in session.run.call_args_list]
+    delete_idx = next(i for i, c in enumerate(calls) if "DETACH DELETE" in c)
+    merge_idx = next(i for i, c in enumerate(calls) if "MERGE (n:Norma" in c)
+    assert delete_idx < merge_idx
 
 
 def test_preprocesar_escribe_norma_con_merge(

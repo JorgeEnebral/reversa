@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "description": "Schema de la arista dinámica (:UserQuery)-[:RESULT_EDGE]->(:Norma).",
+  "properties": {
+    "texto": {
+      "description": "Texto resumen de qué resuelve la bbdd_query que generó esta arista",
+      "title": "Texto",
+      "type": "string"
+    }
+  },
+  "required": [
+    "texto"
+  ],
+  "title": "ResultEdgeSchema",
+  "type": "object"
+}

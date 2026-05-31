@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,7 +18,6 @@ from typing import Any
 import structlog
 from lxml import etree
 from neo4j import GraphDatabase
-from pydantic import BaseModel, Field
 from tqdm import tqdm
 
 from src.config import (
@@ -28,6 +27,18 @@ from src.config import (
     Settings,
     settings,
 )
+from src.schemas import (
+    EdgeSchema,
+    Norma,
+    NormaSchema,
+    Referencia,
+    ResultEdgeSchema,
+    UserQuerySchema,
+    render_md_edge,
+    render_md_norma,
+    render_md_result_edge,
+    render_md_user_query,
+)
 
 log = structlog.get_logger()
 
@@ -35,67 +46,6 @@ log = structlog.get_logger()
 # --------------------------------------------------------------------------- #
 # Modelos de datos                                                             #
 # --------------------------------------------------------------------------- #
-
-
-@dataclass
-class Referencia:
-    """Referencia a otra norma extraída de <analisis>/<referencias>/<anteriores>.
-
-    Attributes:
-        id_norma: identificador BOE de la norma referenciada.
-        relacion_codigo: código de relación BOE (e.g. 210 = DEROGA).
-        relacion: texto que define relación BOE (e.g. DEROGA = 210).
-        texto: descripción libre del alcance de la relación.
-    """
-
-    id_norma: str
-    relacion_codigo: int
-    relacion: str
-    texto: str
-
-
-@dataclass
-class Norma:
-    """Representación en memoria de una norma BOE parseada.
-
-    Solo los campos habilitados en ParseFlags tendrán valor; el resto es None.
-    referencias_anteriores no se escribe como propiedad de nodo: se materializan
-    como aristas Neo4j.
-
-    Attributes:
-        id: identificador BOE (siempre presente, es la clave del nodo).
-    """
-
-    id: str
-    fecha_actualizacion: str | None = None
-    ambito_codigo: int | None = None
-    ambito: str | None = None
-    departamento_codigo: int | None = None
-    departamento: str | None = None
-    rango_codigo: int | None = None
-    rango: str | None = None
-    fecha_disposicion: str | None = None
-    numero_oficial: str | None = None
-    titulo: str | None = None
-    diario: str | None = None
-    fecha_publicacion: str | None = None
-    diario_numero: int | None = None
-    fecha_vigencia: str | None = None
-    estatus_derogacion: str | None = None
-    fecha_derogacion: str | None = None
-    estatus_anulacion: str | None = None
-    fecha_anulacion: str | None = None
-    vigencia_agotada: str | None = None
-    vigente: bool | None = None
-    estado_consolidacion_codigo: int | None = None
-    estado_consolidacion: str | None = None
-    url_eli: str | None = None
-    url_html_consolidada: str | None = None
-    materias_codigos: list[int] | None = None
-    materias: list[str] | None = None
-    nota: str | None = None
-    referencias_anteriores: list[Referencia] = field(default_factory=list)
-    referencias_posteriores: list[Referencia] = field(default_factory=list)
 
 
 @dataclass
@@ -129,384 +79,15 @@ class ResumenReintento:
 
 
 # --------------------------------------------------------------------------- #
-# Schemas Pydantic para generación de documentación                           #
+# Generación de esquemas                                                      #
 # --------------------------------------------------------------------------- #
 
 
-class NormaSchema(BaseModel):
-    """Schema del nodo :Norma — todos los campos posibles como Optional."""
+def generar_esquemas(base_dir: Path | None = None) -> None:
+    """Borra y regenera el directorio semantic-layer con todos los esquemas.
 
-    id: str = Field(description="Identificador BOE (e.g. BOE-A-2015-10565)")
-    fecha_actualizacion: str | None = Field(
-        None, description="Fecha de última actualización ISO-8601"
-    )
-    ambito_codigo: int | None = Field(
-        None,
-        description="Código del ámbito territorial (1=Estatal, 2=Autonómico…)",
-    )
-    ambito: str | None = Field(
-        None, description="Texto del ámbito territorial (e.g. Estatal)"
-    )
-    departamento_codigo: int | None = Field(
-        None, description="Código del departamento emisor"
-    )
-    departamento: str | None = Field(
-        None, description="Nombre del departamento emisor"
-    )
-    rango_codigo: int | None = Field(
-        None, description="Código del rango normativo"
-    )
-    rango: str | None = Field(
-        None, description="Texto del rango (e.g. Ley, Real Decreto)"
-    )
-    fecha_disposicion: str | None = Field(
-        None, description="Fecha de disposición YYYY-MM-DD"
-    )
-    numero_oficial: str | None = Field(
-        None, description="Número oficial de la norma"
-    )
-    titulo: str | None = Field(None, description="Título oficial de la norma")
-    diario: str | None = Field(None, description="Nombre del boletín oficial")
-    fecha_publicacion: str | None = Field(
-        None, description="Fecha de publicación en el BOE YYYY-MM-DD"
-    )
-    diario_numero: int | None = Field(
-        None, description="Número del boletín oficial"
-    )
-    fecha_vigencia: str | None = Field(
-        None, description="Fecha de entrada en vigor YYYY-MM-DD"
-    )
-    estatus_derogacion: str | None = Field(
-        None, description="S/N — norma derogada"
-    )
-    fecha_derogacion: str | None = Field(
-        None, description="Fecha de derogación YYYY-MM-DD"
-    )
-    estatus_anulacion: str | None = Field(
-        None, description="S/N — norma judicialmente anulada"
-    )
-    fecha_anulacion: str | None = Field(
-        None, description="Fecha de anulación YYYY-MM-DD"
-    )
-    vigencia_agotada: str | None = Field(
-        None, description="S/N — vigencia agotada por cumplimiento de plazo"
-    )
-    estado_consolidacion_codigo: int | None = Field(
-        None, description="Código del estado de consolidación"
-    )
-    estado_consolidacion: str | None = Field(
-        None, description="Texto del estado de consolidación"
-    )
-    url_eli: str | None = Field(None, description="URL ELI de la norma")
-    url_html_consolidada: str | None = Field(
-        None, description="URL HTML de la versión consolidada"
-    )
-    materias_codigos: list[int] | None = Field(
-        None, description="Códigos de materias temáticas"
-    )
-    materias: list[str] | None = Field(
-        None, description="Textos de materias temáticas"
-    )
-    nota: str | None = Field(
-        None, description="Notas que aportan información adicional a la norma"
-    )
-
-
-class EdgeSchema(BaseModel):
-    """Schema de una arista entre nodos :Norma."""
-
-    relacion_codigo: int = Field(
-        description="Código de relación BOE (e.g. 210 = DEROGA)"
-    )
-    relacion: str = Field(
-        description="Texto que define la relación (e.g. DEROGA)"
-    )
-    texto: str = Field(
-        description="Descripción libre del alcance de la relación"
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Generación de esquemas semánticos                                           #
-# --------------------------------------------------------------------------- #
-
-_NORMA_MD_FIELDS: list[tuple[str, str, str, str, str, str]] = [
-    (
-        "fecha_actualizacion",
-        "fecha_actualizacion",
-        "string",
-        "no",
-        "Fecha de última actualización ISO-8601",
-        "`20251201T120000Z`",
-    ),
-    (
-        "ambito",
-        "ambito_codigo",
-        "int",
-        "no",
-        "Código del ámbito territorial",
-        "`1`",
-    ),
-    (
-        "ambito",
-        "ambito",
-        "string",
-        "no",
-        "Texto del ámbito territorial",
-        "`Estatal`",
-    ),
-    (
-        "titulo",
-        "titulo",
-        "string",
-        "no",
-        "Título oficial de la norma",
-        "`Ley 39/2015...`",
-    ),
-    (
-        "diario",
-        "diario",
-        "string",
-        "no",
-        "Nombre del boletín oficial",
-        "`Boletín Oficial del Estado`",
-    ),
-    (
-        "diario_numero",
-        "diario_numero",
-        "int",
-        "no",
-        "Número del boletín oficial",
-        "`236`",
-    ),
-    (
-        "departamento",
-        "departamento_codigo",
-        "int",
-        "no",
-        "Código del departamento emisor",
-        "`3681`",
-    ),
-    (
-        "departamento",
-        "departamento",
-        "string",
-        "no",
-        "Nombre del departamento emisor",
-        "`Jefatura del Estado`",
-    ),
-    (
-        "rango",
-        "rango_codigo",
-        "int",
-        "no",
-        "Código del rango normativo",
-        "`1300`",
-    ),
-    ("rango", "rango", "string", "no", "Texto del rango normativo", "`Ley`"),
-    (
-        "fecha_disposicion",
-        "fecha_disposicion",
-        "string",
-        "no",
-        "Fecha de disposición (YYYY-MM-DD)",
-        "`2015-10-01`",
-    ),
-    (
-        "numero_oficial",
-        "numero_oficial",
-        "string",
-        "no",
-        "Número oficial de la norma",
-        "`39/2015`",
-    ),
-    (
-        "fecha_publicacion",
-        "fecha_publicacion",
-        "string",
-        "no",
-        "Fecha de publicación en BOE (YYYY-MM-DD)",
-        "`2015-10-02`",
-    ),
-    (
-        "fecha_vigencia",
-        "fecha_vigencia",
-        "string",
-        "no",
-        "Fecha de entrada en vigor (YYYY-MM-DD)",
-        "`2015-10-02`",
-    ),
-    (
-        "estatus_derogacion",
-        "estatus_derogacion",
-        "string",
-        "no",
-        "S/N — norma derogada",
-        "`N`",
-    ),
-    (
-        "fecha_derogacion",
-        "fecha_derogacion",
-        "string",
-        "no",
-        "Fecha de derogación (YYYY-MM-DD)",
-        "`2022-05-18`",
-    ),
-    (
-        "estatus_anulacion",
-        "estatus_anulacion",
-        "string",
-        "no",
-        "S/N — norma judicialmente anulada",
-        "`N`",
-    ),
-    (
-        "fecha_anulacion",
-        "fecha_anulacion",
-        "string",
-        "no",
-        "Fecha de anulación (YYYY-MM-DD)",
-        "`2022-05-18`",
-    ),
-    (
-        "vigencia_agotada",
-        "vigencia_agotada",
-        "string",
-        "no",
-        "S/N — vigencia agotada",
-        "`N`",
-    ),
-    (
-        "estado_consolidacion",
-        "estado_consolidacion_codigo",
-        "int",
-        "no",
-        "Código del estado de consolidación",
-        "`3`",
-    ),
-    (
-        "estado_consolidacion",
-        "estado_consolidacion",
-        "string",
-        "no",
-        "Texto del estado de consolidación",
-        "`Finalizado`",
-    ),
-    (
-        "url_eli",
-        "url_eli",
-        "string",
-        "no",
-        "URL ELI de la norma",
-        "`https://...`",
-    ),
-    (
-        "url_html_consolidada",
-        "url_html_consolidada",
-        "string",
-        "no",
-        "URL HTML de la versión consolidada",
-        "`https://...`",
-    ),
-]
-
-_ANALISIS_MD_FIELDS: list[tuple[str, str, str, str, str, str]] = [
-    (
-        "materias",
-        "materias_codigos",
-        "int[]",
-        "no",
-        "Códigos de materias temáticas",
-        "`[1270, 1680]`",
-    ),
-    (
-        "materias",
-        "materias",
-        "string[]",
-        "no",
-        "Textos de materias temáticas",
-        '`["Administración Pública"]`',
-    ),
-    (
-        "notas",
-        "nota",
-        "string",
-        "no",
-        "Nota libre del boletín",
-        "`Publicada en el DOGC...`",
-    ),
-]
-
-
-def render_md_norma(flags: ParseFlags) -> str:
-    """Genera el Markdown de documentación del nodo :Norma según flags activos.
-
-    Args:
-        flags: configuración de parseo activa.
-
-    Returns:
-        Contenido Markdown del fichero node.norma.md.
-    """
-    lines = [
-        "# :Norma",
-        "",
-        "Nodo principal del grafo. Una norma consolidada del BOE.",
-        "",
-        "| Atributo | Tipo | Obligatorio | Descripción | Ejemplo |",
-        "|---|---|---|---|---|",
-        "| id | string | sí | Identificador BOE | `BOE-A-2015-10565` |",
-    ]
-
-    if isinstance(flags.metadatos, MetadatosFlags):
-        m = flags.metadatos
-        if m.estatus_derogacion and m.estatus_anulacion and m.vigencia_agotada:
-            lines.append(
-                "| vigente | bool | no | "
-                "Calculado: derogacion=N AND anulacion=N AND vigencia_agotada=N | `true` |"
-            )
-        for flag_attr, campo, tipo, oblig, desc, ejemplo in _NORMA_MD_FIELDS:
-            if getattr(m, flag_attr, False):
-                lines.append(
-                    f"| {campo} | {tipo} | {oblig} | {desc} | {ejemplo} |"
-                )
-
-    if isinstance(flags.analisis, AnalisisFlags):
-        a = flags.analisis
-        for flag_attr, campo, tipo, oblig, desc, ejemplo in _ANALISIS_MD_FIELDS:
-            if getattr(a, flag_attr, False):
-                lines.append(
-                    f"| {campo} | {tipo} | {oblig} | {desc} | {ejemplo} |"
-                )
-
-    return "\n".join(lines) + "\n"
-
-
-def render_md_edge(rel_type: str, codigo: int) -> str:
-    """Genera el Markdown de documentación de una arista tipada.
-
-    Args:
-        rel_type: TYPE Cypher de la relación (e.g. DEROGA).
-        codigo: código BOE de la relación (e.g. 210).
-
-    Returns:
-        Contenido Markdown del fichero {rel_type.lower()}.md.
-    """
-    return (
-        f"# :{rel_type}\n"
-        "\n"
-        f"Arista de relación entre normas. Código BOE: {codigo}.\n"
-        "\n"
-        "| Atributo | Tipo | Obligatorio | Descripción | Ejemplo |\n"
-        "|---|---|---|---|---|\n"
-        f"| codigo | int | sí | Código de relación BOE | `{codigo}` |\n"
-        "| texto | string | sí | Descripción libre del alcance | `los arts. 4 a 7...` |\n"
-    )
-
-
-def regenerar_esquemas_semanticos(base_dir: Path | None = None) -> None:
-    """Borra y regenera el directorio semantic-layer a partir de los flags activos.
-
-    El directorio dynamic-layer no se toca nunca.
+    Escribe esquemas semánticos (Norma, aristas BOE) y dinámicos (UserQuery,
+    RESULT_EDGE). El directorio dynamic-layer no se toca nunca.
     .md se guardan en humans/, .json en agents/.
 
     Args:
@@ -528,6 +109,7 @@ def regenerar_esquemas_semanticos(base_dir: Path | None = None) -> None:
     for d in (humans_nodes, humans_edges, agents_nodes, agents_edges):
         d.mkdir(parents=True)
 
+    # — Semánticos: nodos
     (humans_nodes / "norma.md").write_text(render_md_norma(settings.parse))
     (agents_nodes / "norma.json").write_text(
         json.dumps(
@@ -535,6 +117,7 @@ def regenerar_esquemas_semanticos(base_dir: Path | None = None) -> None:
         )
     )
 
+    # — Semánticos: aristas
     for codigo, rel_type in settings.relacion.codigos_a_relacion.items():
         nombre = rel_type.lower()
         (humans_edges / f"{nombre}.md").write_text(
@@ -546,8 +129,24 @@ def regenerar_esquemas_semanticos(base_dir: Path | None = None) -> None:
             )
         )
 
+    # — Dinámicos: nodos
+    (humans_nodes / "user_query.md").write_text(render_md_user_query())
+    (agents_nodes / "user_query.json").write_text(
+        json.dumps(
+            UserQuerySchema.model_json_schema(), ensure_ascii=False, indent=2
+        )
+    )
+
+    # — Dinámicos: aristas
+    (humans_edges / "result_edge.md").write_text(render_md_result_edge())
+    (agents_edges / "result_edge.json").write_text(
+        json.dumps(
+            ResultEdgeSchema.model_json_schema(), ensure_ascii=False, indent=2
+        )
+    )
+
     log.info(
-        "\nEsquemas semanticos creados",
+        "\nEsquemas creados",
         semantic_dir=str(sem),
         relaciones=len(settings.relacion.codigos_a_relacion),
     )
@@ -754,9 +353,9 @@ class Preprocesador:
         self.api_raw_dir = config.api.raw_dir
 
     def preprocesar_todo(self) -> ResumenPreproc:
-        """Recorre todos los XMLs en data/api/raw y los carga en Neo4j.
+        """Recorre todos los XMLs en ontology/kinetic-layer/api_boe/raw y los carga en Neo4j.
 
-        Al finalizar regenera los esquemas semánticos.
+        Al finalizar genera los esquemas.
 
         Returns:
             ResumenPreproc con totales de la operación.
@@ -764,7 +363,8 @@ class Preprocesador:
         resumen = ResumenPreproc()
         year_dirs = sorted(p for p in self.api_raw_dir.iterdir() if p.is_dir())
         all_xmls = [f for d in year_dirs for f in sorted(d.glob("*.xml"))]
-
+        self._limpiar_grafo()
+        
         log.info("\nPreprocesando...")
         with self._driver.session(database=self._db) as s:
             with tqdm(all_xmls, unit="norma", dynamic_ncols=True) as bar:
@@ -772,7 +372,7 @@ class Preprocesador:
                     bar.set_postfix_str(xml_path.stem, refresh=False)
                     self._procesar_fichero(xml_path, s, resumen)
 
-        regenerar_esquemas_semanticos(base_dir=self._ontology_dir)
+        generar_esquemas(base_dir=self._ontology_dir)
         log.info(
             "\nPreprocesado completado",
             procesadas=resumen.procesadas,
@@ -782,6 +382,12 @@ class Preprocesador:
         )
         self.reintentar()
         return resumen
+
+    def _limpiar_grafo(self) -> None:
+        """Borra todos los nodos y aristas del grafo antes del procesado masivo."""
+        with self._driver.session(database=self._db) as s:
+            s.run("MATCH (n) DETACH DELETE n")
+        log.info("Grafo limpiado")
 
     def _procesar_fichero(
         self, xml_path: Path, session: Any, resumen: ResumenPreproc
@@ -820,15 +426,35 @@ class Preprocesador:
         props = {
             k: v
             for k, v in raw.items()
-            if k
-            not in ("id", "referencias_anteriores", "referencias_posteriores")
-            and v is not None
+            if k not in ("id", "referencias_anteriores") and v is not None
         }
         session.run(
             "MERGE (n:Norma {id: $id}) SET n += $props",
             id=norma.id,
             props=props,
         )
+
+    def _upsert_relacion(
+        self,
+        session: Any,
+        src_id: str,
+        rel_type: str,
+        dst_id: str,
+        codigo: int,
+        texto: str,
+    ) -> None:
+        """Crea una arista tipada por cada referencia del XML.
+
+        Usa MATCH en ambos nodos: si la norma destino no existe en el corpus
+        la arista se omite, garantizando que no se crean nodos stub.
+        rel_type ya está validado como valor en codigos_a_relacion.
+        """
+        query = (
+            f"MATCH (a:Norma {{id: $src}})"
+            f" MERGE (b:Norma {{id: $dst}})"
+            f" CREATE (a)-[:{rel_type} {{codigo: $codigo, texto: $texto}}]->(b)"
+        )
+        session.run(query, src=src_id, dst=dst_id, codigo=codigo, texto=texto)
 
     def reintentar(self) -> ResumenReintento:
         """Reintenta todos los XMLs en errors/.
@@ -897,24 +523,3 @@ class Preprocesador:
             "attempts": 1,
         }
         error_path.write_text(json.dumps(payload, ensure_ascii=False))
-
-    def _upsert_relacion(
-        self,
-        session: Any,
-        src_id: str,
-        rel_type: str,
-        dst_id: str,
-        codigo: int,
-        texto: str,
-    ) -> None:
-        """Escribe o actualiza una arista tipada con MERGE.
-
-        rel_type ya está validado como valor en codigos_a_relacion.
-        """
-        query = (
-            f"MERGE (a:Norma {{id: $src}})"
-            f" MERGE (b:Norma {{id: $dst}})"
-            f" MERGE (a)-[r:{rel_type} {{codigo: $codigo}}]->(b)"
-            f" SET r.texto = $texto"
-        )
-        session.run(query, src=src_id, dst=dst_id, codigo=codigo, texto=texto)
