@@ -54,9 +54,7 @@ def _query_graph(filters: dict[str, Any]) -> dict[str, Any]:
         where_clauses.append("toLower(n.rango) CONTAINS toLower($rango)")
         params["rango"] = filters["rango"]
     if "departamento" in filters:
-        where_clauses.append(
-            "toLower(n.departamento) CONTAINS toLower($departamento)"
-        )
+        where_clauses.append("toLower(n.departamento) CONTAINS toLower($departamento)")
         params["departamento"] = filters["departamento"]
     if "anyo_desde" in filters:
         where_clauses.append("n.fecha_publicacion >= $anyo_desde")
@@ -65,9 +63,7 @@ def _query_graph(filters: dict[str, Any]) -> dict[str, Any]:
         where_clauses.append("n.fecha_publicacion <= $anyo_hasta")
         params["anyo_hasta"] = f"{filters['anyo_hasta']}-12-31"
 
-    where_str = (
-        ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    )
+    where_str = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     node_q = f"MATCH (n:Norma) {where_str} RETURN n LIMIT {_MAX_NODES}"
     edge_q = (
@@ -121,12 +117,8 @@ def register_graph_page() -> None:
         """Página de visualización del grafo."""
         for cdn_url in _SIGMA_CDN:
             ui.add_head_html(f'<script src="{cdn_url}"></script>')
-        ui.add_head_html(
-            '<script src="/static/sigma_bridge.js" defer></script>'
-        )
-        ui.add_head_html(
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        )
+        ui.add_head_html('<script src="/static/sigma_bridge.js" defer></script>')
+        ui.add_head_html('<meta name="viewport" content="width=device-width,initial-scale=1">')
 
         # Header
         from src.web.pages.chat import (
@@ -154,17 +146,14 @@ def register_graph_page() -> None:
             if sigma_canvas is not None:
                 await sigma_canvas.load_graph(graph_data)
 
-        with ui.row().style(
-            "width:100%;height:calc(100vh - 60px);gap:0;overflow:hidden;"
-        ):
+        with ui.row().style("width:100%;height:calc(100vh - 60px);gap:0;overflow:hidden;"):
             # Panel izquierdo — filtros
             FilterPanel(on_apply=apply_filters, width=220)
 
             # Canvas central
             with ui.column().style("flex:1;height:100%;position:relative;"):
                 status_label = ui.label("Cargando…").style(
-                    "position:absolute;top:8px;left:8px;z-index:10;"
-                    "color:#aaa;font-size:0.82em;"
+                    "position:absolute;top:8px;left:8px;z-index:10;color:#aaa;font-size:0.82em;"
                 )
                 sigma_canvas = SigmaCanvas(
                     on_node_click=on_node_click,

@@ -9,7 +9,6 @@ Uso:
 from __future__ import annotations
 
 import json
-import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,17 +26,10 @@ from src.config import (
     Settings,
     settings,
 )
-from src.schemas import (
-    EdgeSchema,
+from src.semantic_schemas import (
     Norma,
-    NormaSchema,
     Referencia,
-    ResultEdgeSchema,
-    UserQuerySchema,
-    render_md_edge,
-    render_md_norma,
-    render_md_result_edge,
-    render_md_user_query,
+    generar_esquemas,
 )
 
 log = structlog.get_logger()
@@ -76,80 +68,6 @@ class ResumenReintento:
 
     recuperados: int = 0
     total_intentados: int = 0
-
-
-# --------------------------------------------------------------------------- #
-# Generación de esquemas                                                      #
-# --------------------------------------------------------------------------- #
-
-
-def generar_esquemas(base_dir: Path | None = None) -> None:
-    """Borra y regenera el directorio semantic-layer con todos los esquemas.
-
-    Escribe esquemas semánticos (Norma, aristas BOE) y dinámicos (UserQuery,
-    RESULT_EDGE). El directorio dynamic-layer no se toca nunca.
-    .md se guardan en humans/, .json en agents/.
-
-    Args:
-        base_dir: directorio raíz de la ontología. Por defecto usa
-            settings.preprocess.ontology_dir (útil para pasar tmp_path en tests).
-    """
-    out_dir = (
-        base_dir if base_dir is not None else settings.preprocess.ontology_dir
-    )
-    sem = out_dir / settings.preprocess.semantic_subdir
-
-    if sem.exists():
-        shutil.rmtree(sem)
-
-    humans_nodes = sem / "humans" / "nodes"
-    humans_edges = sem / "humans" / "edges"
-    agents_nodes = sem / "agents" / "nodes"
-    agents_edges = sem / "agents" / "edges"
-    for d in (humans_nodes, humans_edges, agents_nodes, agents_edges):
-        d.mkdir(parents=True)
-
-    # — Semánticos: nodos
-    (humans_nodes / "norma.md").write_text(render_md_norma(settings.parse))
-    (agents_nodes / "norma.json").write_text(
-        json.dumps(
-            NormaSchema.model_json_schema(), ensure_ascii=False, indent=2
-        )
-    )
-
-    # — Semánticos: aristas
-    for codigo, rel_type in settings.relacion.codigos_a_relacion.items():
-        nombre = rel_type.lower()
-        (humans_edges / f"{nombre}.md").write_text(
-            render_md_edge(rel_type, codigo)
-        )
-        (agents_edges / f"{nombre}.json").write_text(
-            json.dumps(
-                EdgeSchema.model_json_schema(), ensure_ascii=False, indent=2
-            )
-        )
-
-    # — Dinámicos: nodos
-    (humans_nodes / "user_query.md").write_text(render_md_user_query())
-    (agents_nodes / "user_query.json").write_text(
-        json.dumps(
-            UserQuerySchema.model_json_schema(), ensure_ascii=False, indent=2
-        )
-    )
-
-    # — Dinámicos: aristas
-    (humans_edges / "result_edge.md").write_text(render_md_result_edge())
-    (agents_edges / "result_edge.json").write_text(
-        json.dumps(
-            ResultEdgeSchema.model_json_schema(), ensure_ascii=False, indent=2
-        )
-    )
-
-    log.info(
-        "\nEsquemas creados",
-        semantic_dir=str(sem),
-        relaciones=len(settings.relacion.codigos_a_relacion),
-    )
 
 
 # --------------------------------------------------------------------------- #
@@ -243,15 +161,11 @@ def _parse_metadatos(meta: Any, norma: Norma, flags: ParseFlags) -> None:
             norma.rango_codigo = _int_attr(rng, "codigo")
             norma.rango = rng.text
     if f.fecha_disposicion:
-        norma.fecha_disposicion = _parse_date(
-            meta.findtext("fecha_disposicion")
-        )
+        norma.fecha_disposicion = _parse_date(meta.findtext("fecha_disposicion"))
     if f.numero_oficial:
         norma.numero_oficial = meta.findtext("numero_oficial")
     if f.fecha_publicacion:
-        norma.fecha_publicacion = _parse_date(
-            meta.findtext("fecha_publicacion")
-        )
+        norma.fecha_publicacion = _parse_date(meta.findtext("fecha_publicacion"))
     if f.fecha_vigencia:
         norma.fecha_vigencia = _parse_date(meta.findtext("fecha_vigencia"))
     if f.estatus_derogacion:
@@ -291,19 +205,13 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
         materias_el = analisis_el.find("materias")
         if materias_el is not None:
             norma.materias_codigos = [
-                int(m.get("codigo", "0"))
-                for m in materias_el.findall("materia")
+                int(m.get("codigo", "0")) for m in materias_el.findall("materia")
             ]
-            norma.materias = [
-                m.text or "" for m in materias_el.findall("materia")
-            ]
+            norma.materias = [m.text or "" for m in materias_el.findall("materia")]
     if f.notas:
         notas_el = analisis_el.find("notas")
         if notas_el is not None:
-            norma.nota = (
-                " ".join(n.text or "" for n in notas_el.findall("nota")).strip()
-                or None
-            )
+            norma.nota = " ".join(n.text or "" for n in notas_el.findall("nota")).strip() or None
     if f.referencias_anteriores:
         anteriores = analisis_el.find("referencias/anteriores")
         if anteriores is not None:
@@ -313,9 +221,7 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
                     Referencia(
                         id_norma=ant.findtext("id_norma", ""),
                         relacion_codigo=_int_attr(rel_el, "codigo") or 0,
-                        relacion=rel_el.text or ""
-                        if rel_el is not None
-                        else "",
+                        relacion=rel_el.text or "" if rel_el is not None else "",
                         texto=ant.findtext("texto", ""),
                     )
                 )
@@ -364,7 +270,7 @@ class Preprocesador:
         year_dirs = sorted(p for p in self.api_raw_dir.iterdir() if p.is_dir())
         all_xmls = [f for d in year_dirs for f in sorted(d.glob("*.xml"))]
         self._limpiar_grafo()
-        
+
         log.info("\nPreprocesando...")
         with self._driver.session(database=self._db) as s:
             with tqdm(all_xmls, unit="norma", dynamic_ncols=True) as bar:
@@ -389,9 +295,7 @@ class Preprocesador:
             s.run("MATCH (n) DETACH DELETE n")
         log.info("Grafo limpiado")
 
-    def _procesar_fichero(
-        self, xml_path: Path, session: Any, resumen: ResumenPreproc
-    ) -> None:
+    def _procesar_fichero(self, xml_path: Path, session: Any, resumen: ResumenPreproc) -> None:
         """Parsea un fichero y escribe en Neo4j. Actualiza resumen en sitio."""
         resumen.procesadas += 1
         try:
@@ -406,9 +310,7 @@ class Preprocesador:
         resumen.nodos_upsert += 1
 
         for ref in norma.referencias_anteriores:
-            rel_type = self._cfg.relacion.codigos_a_relacion.get(
-                ref.relacion_codigo
-            )
+            rel_type = self._cfg.relacion.codigos_a_relacion.get(ref.relacion_codigo)
             if rel_type:
                 self._upsert_relacion(
                     session,
@@ -479,9 +381,7 @@ class Preprocesador:
                     norma = parse_xml(xml_path, flags=self._cfg.parse)
                     self._upsert_norma(s, norma)
                     for ref in norma.referencias_anteriores:
-                        rel_type = self._cfg.relacion.codigos_a_relacion.get(
-                            ref.relacion_codigo
-                        )
+                        rel_type = self._cfg.relacion.codigos_a_relacion.get(ref.relacion_codigo)
                         if rel_type:
                             self._upsert_relacion(
                                 s,
@@ -497,12 +397,8 @@ class Preprocesador:
                 except Exception as exc:  # noqa: BLE001
                     error_data["attempts"] = error_data.get("attempts", 1) + 1
                     error_data["error"] = str(exc)
-                    error_file.write_text(
-                        json.dumps(error_data, ensure_ascii=False)
-                    )
-                    log.warning(
-                        "Reintento fallido", path=str(xml_path), error=str(exc)
-                    )
+                    error_file.write_text(json.dumps(error_data, ensure_ascii=False))
+                    log.warning("Reintento fallido", path=str(xml_path), error=str(exc))
 
         log.info(
             "\nReintento completado",

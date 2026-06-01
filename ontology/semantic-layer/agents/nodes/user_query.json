@@ -1,43 +1,75 @@
 {
-  "additionalProperties": false,
-  "description": "Schema del nodo :UserQuery — creado por el LLM en runtime.",
-  "properties": {
-    "id_nodo": {
-      "description": "Identificador único del nodo (UUID v4)",
-      "title": "Id Nodo",
-      "type": "string"
-    },
-    "user_id": {
-      "default": "unknown",
-      "description": "Identificador del usuario",
-      "title": "User Id",
-      "type": "string"
-    },
-    "user_prompt": {
-      "description": "Prompt en lenguaje natural enviado por el usuario",
-      "title": "User Prompt",
-      "type": "string"
-    },
-    "bbdd_query": {
-      "description": "Consultas Cypher generadas por el LLM a partir del prompt",
-      "items": {
-        "type": "string"
+  "name": "UserQuery",
+  "description": "Nodo de consulta de usuario. Creado por el LLM en runtime.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "id_nodo": {
+        "type": "string",
+        "description": "Identificador único del nodo (UUID v4)",
+        "examples": [
+          "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        ]
       },
-      "title": "Bbdd Query",
-      "type": "array"
+      "user_id": {
+        "type": "string",
+        "description": "Identificador del usuario",
+        "default": "unknown",
+        "examples": [
+          "unknown"
+        ]
+      },
+      "user_prompt": {
+        "type": "string",
+        "description": "Prompt en lenguaje natural enviado por el usuario",
+        "examples": [
+          "¿Cuántos reales decretos ha emitido el Ministerio de Hacienda?"
+        ]
+      },
+      "bbdd_query": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Consultas Cypher generadas por el LLM a partir del prompt",
+        "examples": [
+          [
+            "MATCH (n:Norma {rango: 'Real Decreto', departamento: 'Ministerio de Hacienda'}) RETURN count(n) AS total"
+          ]
+        ]
+      },
+      "answer": {
+        "type": "string",
+        "description": "Respuesta en lenguaje natural devuelta al usuario",
+        "examples": [
+          "El Ministerio de Hacienda ha emitido 312 reales decretos en el grafo."
+        ]
+      },
+      "ts": {
+        "type": "string",
+        "description": "Timestamp ISO-8601 de creación del nodo (datetime() de Neo4j)",
+        "examples": [
+          "2025-06-01T12:00:00Z"
+        ]
+      }
     },
-    "answer": {
-      "description": "Respuesta en lenguaje natural devuelta al usuario",
-      "title": "Answer",
-      "type": "string"
-    }
+    "required": [
+      "id_nodo",
+      "user_prompt",
+      "bbdd_query",
+      "answer",
+      "ts"
+    ],
+    "additionalProperties": false
   },
-  "required": [
-    "id_nodo",
-    "user_prompt",
-    "bbdd_query",
-    "answer"
-  ],
-  "title": "UserQuerySchema",
-  "type": "object"
+  "example": {
+    "id_nodo": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "user_id": "unknown",
+    "user_prompt": "¿Cuántos reales decretos ha emitido el Ministerio de Hacienda?",
+    "bbdd_query": [
+      "MATCH (n:Norma {rango: 'Real Decreto', departamento: 'Ministerio de Hacienda'}) RETURN count(n) AS total"
+    ],
+    "answer": "El Ministerio de Hacienda ha emitido 312 reales decretos en el grafo.",
+    "ts": "2025-06-01T12:00:00Z"
+  }
 }

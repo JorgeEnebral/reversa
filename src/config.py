@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Raíz del repositorio (reversa/). Ancla las rutas de la ontología de forma
+# absoluta para que resuelvan igual sea cual sea el directorio de trabajo.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 # --------------------------------------------------------------------------- #
 # Hito 1: API
@@ -25,7 +29,7 @@ class APIConfig(BaseSettings):
     base_url: str = "https://www.boe.es/datosabiertos/api"
     timeout: int = 30
     wait: float = 0.0
-    ontology_dir: Path = Path("ontology/kinetic-layer/api_boe")
+    ontology_dir: Path = PROJECT_ROOT / "ontology/kinetic-layer/api_boe"
 
     @property
     def raw_dir(self) -> Path:
@@ -53,7 +57,7 @@ class APIConfig(BaseSettings):
 class PreprocessConfig(BaseModel):
     """Rutas de la ontología. semantic-layer se regenera; dynamic-layer no."""
 
-    ontology_dir: Path = Path("ontology")
+    ontology_dir: Path = PROJECT_ROOT / "ontology"
     semantic_subdir: str = "semantic-layer"
     kinetic_subdir: str = "kinetic-layer"
     dynamic_subdir: str = "dynamic-layer"
@@ -161,9 +165,11 @@ class LLMConfig(BaseModel):
     """Config del cliente Anthropic. ANTHROPIC_API_KEY se lee en src/llm.py."""
 
     model: str = "claude-haiku-4-5"
-    max_tokens: int = 4000
+    max_tokens: int = 1000
     temperature: float = 0.2
-    max_tool_iters: int = 6
+    max_exchanges: int = (
+        2  # Nº de exchanges completos (user→tools→answer) en el historial deslizante
+    )
 
 
 class WebConfig(BaseModel):
@@ -200,6 +206,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_nested_delimiter="__",
         frozen=True,
+        extra="ignore",
     )
 
     api: APIConfig = APIConfig()

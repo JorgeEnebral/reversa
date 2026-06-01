@@ -1,8 +1,9 @@
 # :MODIFICA
 
-Arista de relación entre normas. Código BOE: 270.
+Arista de relación entre normas :Norma. Código BOE: 270.
 
 | Atributo | Tipo | Obligatorio | Descripción | Ejemplo |
 |---|---|---|---|---|
-| codigo | int | sí | Código de relación BOE | `270` |
-| texto | string | sí | Descripción libre del alcance | `los arts. 4 a 7...` |
+| relacion_codigo | int | sí | Código de relación BOE (270 = MODIFICA) | `270` |
+| relacion | string | sí | Texto que define la relación (MODIFICA) | `MODIFICA` |
+| texto | string | sí | Descripción libre del alcance de la relación | `los arts. 4 a 7 en su totalidad` |

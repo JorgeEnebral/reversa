@@ -1,16 +1,23 @@
 {
-  "additionalProperties": false,
-  "description": "Schema de la arista dinámica (:UserQuery)-[:RESULT_EDGE]->(:Norma).",
-  "properties": {
-    "texto": {
-      "description": "Texto resumen de qué resuelve la bbdd_query que generó esta arista",
-      "title": "Texto",
-      "type": "string"
-    }
+  "name": "RESULT_EDGE",
+  "description": "Arista dinámica (:UserQuery)-[:RESULT_EDGE]->(:Norma). Creada por el LLM en runtime.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "texto": {
+        "type": "string",
+        "description": "Motivo de la consulta tool_use que generó esta arista",
+        "examples": [
+          "Reales decretos vigentes del Ministerio de Hacienda"
+        ]
+      }
+    },
+    "required": [
+      "texto"
+    ],
+    "additionalProperties": false
   },
-  "required": [
-    "texto"
-  ],
-  "title": "ResultEdgeSchema",
-  "type": "object"
+  "example": {
+    "texto": "Reales decretos vigentes del Ministerio de Hacienda"
+  }
 }

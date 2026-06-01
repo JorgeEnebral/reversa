@@ -1,359 +1,247 @@
 {
-  "description": "Schema del nodo :Norma — todos los campos posibles como Optional.",
-  "properties": {
-    "id": {
-      "description": "Identificador BOE (e.g. BOE-A-2015-10565)",
-      "title": "Id",
-      "type": "string"
-    },
-    "fecha_actualizacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de última actualización ISO-8601",
-      "title": "Fecha Actualizacion"
-    },
-    "ambito_codigo": {
-      "anyOf": [
-        {
+  "name": "Norma",
+  "description": "Nodo principal del grafo. Una norma consolidada del boletín oficial.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Identificador del boletín oficial (e.g. BOE-A-2015-10565)",
+        "examples": [
+          "BOE-A-2015-10565"
+        ]
+      },
+      "fecha_actualizacion": {
+        "type": "string",
+        "description": "Fecha de última actualización ISO-8601",
+        "examples": [
+          "20251201T120000Z"
+        ]
+      },
+      "ambito_codigo": {
+        "type": "integer",
+        "description": "Código del ámbito territorial (1=Estatal, 2=Autonómico…)",
+        "examples": [
+          1
+        ]
+      },
+      "ambito": {
+        "type": "string",
+        "description": "Texto del ámbito territorial (e.g. Estatal)",
+        "examples": [
+          "Estatal"
+        ]
+      },
+      "departamento_codigo": {
+        "type": "integer",
+        "description": "Código del departamento emisor",
+        "examples": [
+          3681
+        ]
+      },
+      "departamento": {
+        "type": "string",
+        "description": "Nombre del departamento emisor",
+        "examples": [
+          "Jefatura del Estado"
+        ]
+      },
+      "rango_codigo": {
+        "type": "integer",
+        "description": "Código del rango normativo",
+        "examples": [
+          1300
+        ]
+      },
+      "rango": {
+        "type": "string",
+        "description": "Texto del rango (e.g. Ley, Real Decreto)",
+        "examples": [
+          "Ley"
+        ]
+      },
+      "fecha_disposicion": {
+        "type": "string",
+        "description": "Fecha de disposición YYYY-MM-DD",
+        "examples": [
+          "2015-10-01"
+        ]
+      },
+      "numero_oficial": {
+        "type": "string",
+        "description": "Número oficial de la norma",
+        "examples": [
+          "39/2015"
+        ]
+      },
+      "titulo": {
+        "type": "string",
+        "description": "Título oficial de la norma",
+        "examples": [
+          "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común"
+        ]
+      },
+      "diario": {
+        "type": "string",
+        "description": "Nombre del boletín oficial",
+        "examples": [
+          "Boletín Oficial del Estado"
+        ]
+      },
+      "fecha_publicacion": {
+        "type": "string",
+        "description": "Fecha de publicación en el boletín YYYY-MM-DD",
+        "examples": [
+          "2015-10-02"
+        ]
+      },
+      "diario_numero": {
+        "type": "integer",
+        "description": "Número del boletín oficial",
+        "examples": [
+          236
+        ]
+      },
+      "fecha_vigencia": {
+        "type": "string",
+        "description": "Fecha de entrada en vigor YYYY-MM-DD",
+        "examples": [
+          "2015-10-02"
+        ]
+      },
+      "estatus_derogacion": {
+        "type": "string",
+        "description": "S/N — norma derogada",
+        "examples": [
+          "N"
+        ]
+      },
+      "fecha_derogacion": {
+        "type": "string",
+        "description": "Fecha de derogación YYYY-MM-DD",
+        "examples": [
+          "2022-05-18"
+        ]
+      },
+      "estatus_anulacion": {
+        "type": "string",
+        "description": "S/N — norma judicialmente anulada",
+        "examples": [
+          "N"
+        ]
+      },
+      "fecha_anulacion": {
+        "type": "string",
+        "description": "Fecha de anulación YYYY-MM-DD",
+        "examples": [
+          "2022-05-18"
+        ]
+      },
+      "vigencia_agotada": {
+        "type": "string",
+        "description": "S/N — vigencia agotada por cumplimiento de plazo",
+        "examples": [
+          "N"
+        ]
+      },
+      "vigente": {
+        "type": "boolean",
+        "description": "Calculado: true si estatus_derogacion=N AND estatus_anulacion=N AND vigencia_agotada=N",
+        "examples": [
+          true
+        ]
+      },
+      "estado_consolidacion_codigo": {
+        "type": "integer",
+        "description": "Código del estado de consolidación",
+        "examples": [
+          3
+        ]
+      },
+      "estado_consolidacion": {
+        "type": "string",
+        "description": "Texto del estado de consolidación",
+        "examples": [
+          "Finalizado"
+        ]
+      },
+      "url_eli": {
+        "type": "string",
+        "description": "URL ELI de la norma",
+        "examples": [
+          "https://www.boe.es/eli/es/l/2015/10/01/39"
+        ]
+      },
+      "url_html_consolidada": {
+        "type": "string",
+        "description": "URL HTML de la versión consolidada",
+        "examples": [
+          "https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565"
+        ]
+      },
+      "materias_codigos": {
+        "type": "array",
+        "items": {
           "type": "integer"
         },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Código del ámbito territorial (1=Estatal, 2=Autonómico…)",
-      "title": "Ambito Codigo"
-    },
-    "ambito": {
-      "anyOf": [
-        {
+        "description": "Códigos de materias temáticas",
+        "examples": [
+          [
+            1270,
+            1680
+          ]
+        ]
+      },
+      "materias": {
+        "type": "array",
+        "items": {
           "type": "string"
         },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Texto del ámbito territorial (e.g. Estatal)",
-      "title": "Ambito"
+        "description": "Textos de materias temáticas",
+        "examples": [
+          [
+            "Administración Pública"
+          ]
+        ]
+      }
     },
-    "departamento_codigo": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Código del departamento emisor",
-      "title": "Departamento Codigo"
-    },
-    "departamento": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Nombre del departamento emisor",
-      "title": "Departamento"
-    },
-    "rango_codigo": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Código del rango normativo",
-      "title": "Rango Codigo"
-    },
-    "rango": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Texto del rango (e.g. Ley, Real Decreto)",
-      "title": "Rango"
-    },
-    "fecha_disposicion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de disposición YYYY-MM-DD",
-      "title": "Fecha Disposicion"
-    },
-    "numero_oficial": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Número oficial de la norma",
-      "title": "Numero Oficial"
-    },
-    "titulo": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Título oficial de la norma",
-      "title": "Titulo"
-    },
-    "diario": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Nombre del boletín oficial",
-      "title": "Diario"
-    },
-    "fecha_publicacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de publicación en el BOE YYYY-MM-DD",
-      "title": "Fecha Publicacion"
-    },
-    "diario_numero": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Número del boletín oficial",
-      "title": "Diario Numero"
-    },
-    "fecha_vigencia": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de entrada en vigor YYYY-MM-DD",
-      "title": "Fecha Vigencia"
-    },
-    "estatus_derogacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "S/N — norma derogada",
-      "title": "Estatus Derogacion"
-    },
-    "fecha_derogacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de derogación YYYY-MM-DD",
-      "title": "Fecha Derogacion"
-    },
-    "estatus_anulacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "S/N — norma judicialmente anulada",
-      "title": "Estatus Anulacion"
-    },
-    "fecha_anulacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Fecha de anulación YYYY-MM-DD",
-      "title": "Fecha Anulacion"
-    },
-    "vigencia_agotada": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "S/N — vigencia agotada por cumplimiento de plazo",
-      "title": "Vigencia Agotada"
-    },
-    "estado_consolidacion_codigo": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Código del estado de consolidación",
-      "title": "Estado Consolidacion Codigo"
-    },
-    "estado_consolidacion": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Texto del estado de consolidación",
-      "title": "Estado Consolidacion"
-    },
-    "url_eli": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "URL ELI de la norma",
-      "title": "Url Eli"
-    },
-    "url_html_consolidada": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "URL HTML de la versión consolidada",
-      "title": "Url Html Consolidada"
-    },
-    "materias_codigos": {
-      "anyOf": [
-        {
-          "items": {
-            "type": "integer"
-          },
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Códigos de materias temáticas",
-      "title": "Materias Codigos"
-    },
-    "materias": {
-      "anyOf": [
-        {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Textos de materias temáticas",
-      "title": "Materias"
-    },
-    "nota": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Notas que aportan información adicional a la norma",
-      "title": "Nota"
-    }
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false
   },
-  "required": [
-    "id"
-  ],
-  "title": "NormaSchema",
-  "type": "object"
+  "example": {
+    "id": "BOE-A-2015-10565",
+    "fecha_actualizacion": "20251201T120000Z",
+    "ambito_codigo": 1,
+    "ambito": "Estatal",
+    "departamento_codigo": 3681,
+    "departamento": "Jefatura del Estado",
+    "rango_codigo": 1300,
+    "rango": "Ley",
+    "fecha_disposicion": "2015-10-01",
+    "numero_oficial": "39/2015",
+    "titulo": "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común",
+    "diario": "Boletín Oficial del Estado",
+    "fecha_publicacion": "2015-10-02",
+    "diario_numero": 236,
+    "fecha_vigencia": "2015-10-02",
+    "estatus_derogacion": "N",
+    "fecha_derogacion": "2022-05-18",
+    "estatus_anulacion": "N",
+    "fecha_anulacion": "2022-05-18",
+    "vigencia_agotada": "N",
+    "vigente": true,
+    "estado_consolidacion_codigo": 3,
+    "estado_consolidacion": "Finalizado",
+    "url_eli": "https://www.boe.es/eli/es/l/2015/10/01/39",
+    "url_html_consolidada": "https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565",
+    "materias_codigos": [
+      1270,
+      1680
+    ],
+    "materias": [
+      "Administración Pública"
+    ]
+  }
 }

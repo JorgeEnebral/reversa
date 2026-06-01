@@ -21,16 +21,13 @@ class InfoPanel:
     def __init__(self, width: int = 300) -> None:
         self._width = width
         with ui.card().style(
-            f"width:{width}px;height:100%;overflow-y:auto;"
-            "background:#1e1e3f;color:#e0e0e0;"
+            f"width:{width}px;height:100%;overflow-y:auto;background:#1e1e3f;color:#e0e0e0;"
         ) as self._card:
             with ui.row().classes("w-full justify-between items-center"):
                 self._title = ui.label("Selecciona un elemento").style(
                     "font-weight:bold;font-size:1.1em;"
                 )
-                ui.button("✕", on_click=self.clear).props("flat dense").style(
-                    "color:#e0e0e0;"
-                )
+                ui.button("✕", on_click=self.clear).props("flat dense").style("color:#e0e0e0;")
             self._content = ui.column().classes("w-full gap-1")
         self._card.set_visibility(False)
 
@@ -58,12 +55,8 @@ class InfoPanel:
         self._title.set_text(f"Arista: {label}")
         self._content.clear()
         with self._content:
-            ui.label(f"Origen: {edge.get('src', '')}").style(
-                "font-size:0.85em;"
-            )
-            ui.label(f"Destino: {edge.get('dst', '')}").style(
-                "font-size:0.85em;"
-            )
+            ui.label(f"Origen: {edge.get('src', '')}").style("font-size:0.85em;")
+            ui.label(f"Destino: {edge.get('dst', '')}").style("font-size:0.85em;")
             _render_attrs(edge.get("attrs", {}))
 
     def clear(self) -> None:
@@ -81,6 +74,4 @@ def _render_attrs(attrs: dict[str, Any]) -> None:
     for key, value in attrs.items():
         if value is None:
             continue
-        ui.label(f"{key}: {value}").style(
-            "font-size:0.82em;word-break:break-all;"
-        )
+        ui.label(f"{key}: {value}").style("font-size:0.82em;word-break:break-all;")

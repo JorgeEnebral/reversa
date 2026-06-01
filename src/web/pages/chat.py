@@ -46,9 +46,7 @@ def register_chat_page() -> None:
         """Página principal de chat con streaming del LLM."""
         llm = Llm()
 
-        ui.add_head_html(
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        )
+        ui.add_head_html('<meta name="viewport" content="width=device-width,initial-scale=1">')
 
         build_chat_header()
 
@@ -57,23 +55,17 @@ def register_chat_page() -> None:
             f"display:flex;flex-direction:column;{_DARK_BG}"
         ):
             # Área de mensajes
-            with ui.scroll_area().style(
-                "flex:1;overflow-y:auto;padding:16px;"
-            ) as scroll:
+            with ui.scroll_area().style("flex:1;overflow-y:auto;padding:16px;") as scroll:
                 messages_col = ui.column().classes("w-full gap-3")
 
             # Input + botón
             with ui.row().style(
-                "padding:12px;gap:8px;background:#0d0d1a;"
-                "border-top:1px solid #333;"
+                "padding:12px;gap:8px;background:#0d0d1a;border-top:1px solid #333;"
             ):
                 query_input = (
                     ui.textarea(placeholder="Escribe tu pregunta sobre el BOE…")
                     .props("autogrow rows=1 outlined")
-                    .style(
-                        "flex:1;background:#1e1e3f;color:#e0e0e0;"
-                        "border-radius:8px;"
-                    )
+                    .style("flex:1;background:#1e1e3f;color:#e0e0e0;border-radius:8px;")
                 )
                 send_btn = (
                     ui.button("→")

@@ -1,27 +1,41 @@
 {
-  "description": "Schema de una arista semántica entre nodos :Norma.",
-  "properties": {
-    "relacion_codigo": {
-      "description": "Código de relación BOE (e.g. 210 = DEROGA)",
-      "title": "Relacion Codigo",
-      "type": "integer"
+  "name": "MODIFICA",
+  "description": "Arista de relación entre normas :Norma. Código BOE: 270.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "relacion_codigo": {
+        "type": "integer",
+        "description": "Código de relación BOE (270 = MODIFICA)",
+        "examples": [
+          270
+        ]
+      },
+      "relacion": {
+        "type": "string",
+        "description": "Texto que define la relación (MODIFICA)",
+        "examples": [
+          "MODIFICA"
+        ]
+      },
+      "texto": {
+        "type": "string",
+        "description": "Descripción libre del alcance de la relación",
+        "examples": [
+          "los arts. 4 a 7 en su totalidad"
+        ]
+      }
     },
-    "relacion": {
-      "description": "Texto que define la relación (e.g. DEROGA)",
-      "title": "Relacion",
-      "type": "string"
-    },
-    "texto": {
-      "description": "Descripción libre del alcance de la relación",
-      "title": "Texto",
-      "type": "string"
-    }
+    "required": [
+      "relacion_codigo",
+      "relacion",
+      "texto"
+    ],
+    "additionalProperties": false
   },
-  "required": [
-    "relacion_codigo",
-    "relacion",
-    "texto"
-  ],
-  "title": "EdgeSchema",
-  "type": "object"
+  "example": {
+    "relacion_codigo": 270,
+    "relacion": "MODIFICA",
+    "texto": "los arts. 4 a 7 en su totalidad"
+  }
 }

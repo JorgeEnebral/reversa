@@ -7,7 +7,7 @@ Sigue las convenciones de tests/test_preprocess.py.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -90,9 +90,7 @@ class TestConsultarGrafo:
 
     def test_rechaza_escritura(self, llm: Llm) -> None:
         """consultar_grafo lanza ValueError si la Cypher contiene CREATE."""
-        args = ConsultarGrafoArgs(
-            cypher="CREATE (n:Norma {id: 'x'})", motivo="test"
-        )
+        args = ConsultarGrafoArgs(cypher="CREATE (n:Norma {id: 'x'})", motivo="test")
         with pytest.raises(ValueError, match="lectura"):
             llm._ejecutar_consultar(args)
 
@@ -106,9 +104,7 @@ class TestConsultarGrafo:
         session_mock.run.return_value = []
         llm._driver.session.return_value = session_mock
 
-        args = ConsultarGrafoArgs(
-            cypher="MATCH (n:Norma) RETURN n LIMIT 1", motivo="test"
-        )
+        args = ConsultarGrafoArgs(cypher="MATCH (n:Norma) RETURN n LIMIT 1", motivo="test")
         llm._ejecutar_consultar(args)
 
         call_kwargs = llm._driver.session.call_args.kwargs
@@ -192,9 +188,7 @@ class TestBucleToolUse:
         resp_final.content = [final_block]
 
         # Primera llamada devuelve tool_use con 2 bloques, segunda devuelve end_turn
-        llm._client.messages.create = AsyncMock(
-            side_effect=[resp_tool_use, resp_final]
-        )
+        llm._client.messages.create = AsyncMock(side_effect=[resp_tool_use, resp_final])
 
         session_mock = MagicMock()
         session_mock.__enter__ = MagicMock(return_value=session_mock)
@@ -229,9 +223,7 @@ class TestBucleToolUse:
         stream_ctx = AsyncMock()
         stream_ctx.__aenter__ = AsyncMock(return_value=stream_ctx)
         stream_ctx.__aexit__ = AsyncMock(return_value=False)
-        stream_ctx.text_stream = _async_iter(
-            ["Ver [BOE-A-2015-10565 — Ley 39/2015]."]
-        )
+        stream_ctx.text_stream = _async_iter(["Ver [BOE-A-2015-10565 — Ley 39/2015]."])
         llm._client.messages.stream = MagicMock(return_value=stream_ctx)
 
         guardar_mock = MagicMock(return_value="uuid-001")

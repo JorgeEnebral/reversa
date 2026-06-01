@@ -36,24 +36,20 @@ class FilterPanel:
             f"width:{width}px;height:100%;overflow-y:auto;"
             "background:#1e1e3f;color:#e0e0e0;padding:12px;"
         ):
-            ui.label("Filtros").style(
-                "font-weight:bold;font-size:1.1em;margin-bottom:8px;"
-            )
+            ui.label("Filtros").style("font-weight:bold;font-size:1.1em;margin-bottom:8px;")
             self._build_filters()
 
             with ui.row().classes("w-full gap-2 mt-4"):
-                ui.button("Restablecer", on_click=self._reset).props(
-                    "flat dense"
-                ).style("color:#e0e0e0;flex:1;")
+                ui.button("Restablecer", on_click=self._reset).props("flat dense").style(
+                    "color:#e0e0e0;flex:1;"
+                )
                 ui.button("Aplicar", on_click=self._apply).style("flex:1;")
 
     def _build_filters(self) -> None:
         """Construye los campos de filtro."""
         # Vigente
         ui.label("Vigente").style("font-size:0.85em;margin-top:8px;")
-        self._vigente = ui.select(["Todas", "Sí", "No"], value="Todas").style(
-            "width:100%;"
-        )
+        self._vigente = ui.select(["Todas", "Sí", "No"], value="Todas").style("width:100%;")
 
         # Rango
         ui.label("Rango").style("font-size:0.85em;margin-top:8px;")
@@ -61,22 +57,16 @@ class FilterPanel:
 
         # Departamento
         ui.label("Departamento").style("font-size:0.85em;margin-top:8px;")
-        self._departamento = ui.input(
-            placeholder="ej. Jefatura del Estado"
-        ).style("width:100%;")
+        self._departamento = ui.input(placeholder="ej. Jefatura del Estado").style("width:100%;")
 
         # Fecha publicación
         ui.label("Año publicación").style("font-size:0.85em;margin-top:8px;")
-        self._anyo_desde = ui.number(
-            placeholder="Desde", min=1950, max=2030
-        ).style("width:100%;")
-        self._anyo_hasta = ui.number(
-            placeholder="Hasta", min=1950, max=2030
-        ).style("width:100%;")
+        self._anyo_desde = ui.number(placeholder="Desde", min=1950, max=2030).style("width:100%;")
+        self._anyo_hasta = ui.number(placeholder="Hasta", min=1950, max=2030).style("width:100%;")
 
     async def _apply(self) -> None:
         """Recopila el estado de los controles y llama on_apply."""
-        filters: dict[str, Any] = {}  # type: ignore[misc]
+        filters: dict[str, Any] = {}
 
         vigente_val = self._vigente.value
         if vigente_val == "Sí":

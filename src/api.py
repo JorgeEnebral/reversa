@@ -138,9 +138,7 @@ class BOEDownloader:
             except Exception as exc:  # noqa: BLE001
                 error_data["attempts"] = error_data.get("attempts", 1) + 1
                 error_data["error"] = str(exc)
-                error_file.write_text(
-                    json.dumps(error_data, ensure_ascii=False)
-                )
+                error_file.write_text(json.dumps(error_data, ensure_ascii=False))
                 log.warning("\nReintento fallido", id=norm_id, error=str(exc))
 
         log.info(

@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from src.config import (
     AnalisisFlags,
     MetadatosFlags,
@@ -25,14 +24,23 @@ from src.preprocess import (
     generar_esquemas,
     parse_xml,
 )
-from src.schemas import (
+from src.semantic_schemas import (
+    NormaSchema,
     ResultEdgeSchema,
     UserQuerySchema,
-    render_md_edge,
-    render_md_norma,
-    render_md_result_edge,
-    render_md_user_query,
+    _clean_prop,
+    _collapse_optional,
+    _norma_include,
+    anthropic_to_md,
+    render_edge,
+    schema_to_anthropic,
 )
+
+
+def _norma_md(flags: ParseFlags) -> str:
+    """Helper de test: Markdown de :Norma para unos flags dados."""
+    return anthropic_to_md(schema_to_anthropic(NormaSchema, include=_norma_include(flags)))
+
 
 FIXTURES = Path(__file__).parent / "fixtures" / "xml"
 FIXTURE_39 = FIXTURES / "BOE-A-2015-10565.xml"
@@ -233,9 +241,7 @@ def test_regenerar_esquemas_borra_y_recrea_semantic_layer(
 
     for rel_type in settings.relacion.codigos_a_relacion.values():
         nombre = rel_type.lower()
-        assert (sem / "humans" / "edges" / f"{nombre}.md").exists(), (
-            f"falta {nombre}.md"
-        )
+        assert (sem / "humans" / "edges" / f"{nombre}.md").exists(), f"falta {nombre}.md"
         assert (sem / "agents" / "edges" / f"{nombre}.json").exists()
 
 
@@ -261,19 +267,18 @@ def test_regenerar_esquemas_no_toca_dynamic_layer(tmp_path: Path) -> None:
 
 
 def test_regenerar_schema_json_es_valido(tmp_path: Path) -> None:
-    """node.norma.schema.json se puede parsear como JSON válido."""
+    """norma.json es formato Anthropic válido (name + input_schema)."""
     generar_esquemas(base_dir=tmp_path)
-    raw = (
-        tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json"
-    ).read_text()
+    raw = (tmp_path / "semantic-layer" / "agents" / "nodes" / "norma.json").read_text()
     schema = json.loads(raw)
-    assert schema.get("type") == "object"
-    assert "properties" in schema
+    assert schema["name"] == "Norma"
+    assert schema["input_schema"]["type"] == "object"
+    assert "properties" in schema["input_schema"]
 
 
 def test_render_md_norma_contiene_id(flags_default: ParseFlags) -> None:
     """El .md de norma siempre contiene la fila del campo id."""
-    md = render_md_norma(flags_default)
+    md = _norma_md(flags_default)
     assert "| id |" in md
     assert "BOE-A-2015-10565" in md
 
@@ -287,7 +292,7 @@ def test_render_md_norma_vigente_si_estatus_activos() -> None:
             vigencia_agotada=True,
         )
     )
-    md = render_md_norma(flags)
+    md = _norma_md(flags)
     assert "vigente" in md
 
 
@@ -300,15 +305,99 @@ def test_render_md_norma_vigente_ausente_si_estatus_incompleto() -> None:
             vigencia_agotada=True,
         )
     )
-    md = render_md_norma(flags)
+    md = _norma_md(flags)
     assert "vigente" not in md
 
 
 def test_render_md_edge_contiene_rel_type() -> None:
     """El .md de arista incluye el TYPE y el código."""
-    md = render_md_edge("DEROGA", 210)
+    md = anthropic_to_md(render_edge("DEROGA", 210))
     assert "DEROGA" in md
     assert "210" in md
+
+
+# --------------------------------------------------------------------------- #
+# Núcleo genérico: model_json_schema() → Anthropic → Markdown                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_collapse_optional_devuelve_rama_no_null() -> None:
+    """anyOf [tipo, null] colapsa a la rama no-null."""
+    prop = {"anyOf": [{"type": "string"}, {"type": "null"}]}
+    assert _collapse_optional(prop) == {"type": "string"}
+
+
+def test_collapse_optional_passthrough_si_tiene_type() -> None:
+    """Una property con type directo se devuelve igual."""
+    prop = {"type": "string"}
+    assert _collapse_optional(prop) == prop
+
+
+def test_clean_prop_descarta_title_y_default_null() -> None:
+    """_clean_prop quita title y el default:null de los Optional."""
+    raw = {
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+        "default": None,
+        "title": "Foo",
+        "description": "d",
+        "examples": ["e"],
+    }
+    assert _clean_prop(raw) == {
+        "type": "string",
+        "description": "d",
+        "examples": ["e"],
+    }
+
+
+def test_clean_prop_conserva_default_real() -> None:
+    """_clean_prop conserva un default no nulo."""
+    raw = {
+        "type": "string",
+        "default": "unknown",
+        "title": "X",
+        "description": "d",
+    }
+    out = _clean_prop(raw)
+    assert out["default"] == "unknown"
+    assert "title" not in out
+
+
+def test_clean_prop_array_incluye_items() -> None:
+    """Un array conserva items en el orden tipo→items→description."""
+    raw = {
+        "anyOf": [
+            {"type": "array", "items": {"type": "integer"}},
+            {"type": "null"},
+        ],
+        "default": None,
+        "description": "d",
+    }
+    out = _clean_prop(raw)
+    assert out["type"] == "array"
+    assert out["items"] == {"type": "integer"}
+
+
+def test_schema_to_anthropic_formato_y_extra_forbid() -> None:
+    """schema_to_anthropic produce las 4 claves y respeta extra=forbid."""
+    s = schema_to_anthropic(ResultEdgeSchema)
+    assert set(s.keys()) == {"name", "description", "input_schema", "example"}
+    assert s["name"] == "RESULT_EDGE"
+    assert s["input_schema"]["additionalProperties"] is False
+
+
+def test_schema_to_anthropic_example_agregado_de_los_campos() -> None:
+    """El example se agrega a partir de los examples de cada campo."""
+    s = schema_to_anthropic(UserQuerySchema)
+    assert s["example"]["user_id"] == "unknown"
+    assert s["example"]["id_nodo"] == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+
+def test_anthropic_to_md_mapea_tipos() -> None:
+    """anthropic_to_md mapea array<string>→string[] y marca obligatorios."""
+    md = anthropic_to_md(schema_to_anthropic(UserQuerySchema))
+    assert "string[]" in md  # bbdd_query
+    assert "| id_nodo | string | sí |" in md
+    assert "| user_id | string | no |" in md
 
 
 # --------------------------------------------------------------------------- #
@@ -323,6 +412,7 @@ def test_user_query_schema_tiene_user_id_default_unknown() -> None:
         user_prompt="¿Qué es la Ley 39/2015?",
         bbdd_query=["MATCH (n:Norma) RETURN n"],
         answer="Es la ley de procedimiento.",
+        ts="2025-06-01T12:00:00Z",
     )
     assert q.user_id == "unknown"
 
@@ -334,6 +424,7 @@ def test_user_query_schema_bbdd_query_es_lista() -> None:
         user_prompt="Pregunta",
         bbdd_query=["MATCH (a) RETURN a", "MATCH (b) RETURN b"],
         answer="Respuesta",
+        ts="2025-06-01T12:00:00Z",
     )
     assert len(q.bbdd_query) == 2
 
@@ -346,7 +437,7 @@ def test_result_edge_schema_tiene_campo_texto() -> None:
 
 def test_render_md_user_query_contiene_campos() -> None:
     """El .md de UserQuery incluye los campos clave."""
-    md = render_md_user_query()
+    md = anthropic_to_md(schema_to_anthropic(UserQuerySchema))
     assert "UserQuery" in md
     assert "bbdd_query" in md
     assert "user_prompt" in md
@@ -355,7 +446,7 @@ def test_render_md_user_query_contiene_campos() -> None:
 
 def test_render_md_result_edge_contiene_texto() -> None:
     """El .md de RESULT_EDGE incluye el campo texto."""
-    md = render_md_result_edge()
+    md = anthropic_to_md(schema_to_anthropic(ResultEdgeSchema))
     assert "RESULT_EDGE" in md
     assert "texto" in md
 
@@ -377,15 +468,14 @@ def test_generar_esquemas_incluye_result_edge(tmp_path: Path) -> None:
 
 
 def test_generar_esquemas_user_query_json_valido(tmp_path: Path) -> None:
-    """user_query.json es JSON Schema válido con additionalProperties:false."""
+    """user_query.json envuelve type/properties/additionalProperties en input_schema."""
     generar_esquemas(base_dir=tmp_path)
-    raw = (
-        tmp_path / "semantic-layer" / "agents" / "nodes" / "user_query.json"
-    ).read_text()
+    raw = (tmp_path / "semantic-layer" / "agents" / "nodes" / "user_query.json").read_text()
     schema = json.loads(raw)
-    assert schema.get("type") == "object"
-    assert "properties" in schema
-    assert schema.get("additionalProperties") is False
+    input_schema = schema["input_schema"]
+    assert input_schema["type"] == "object"
+    assert "properties" in input_schema
+    assert input_schema["additionalProperties"] is False
 
 
 # --------------------------------------------------------------------------- #
@@ -489,9 +579,7 @@ def test_preprocesar_no_crea_arista_para_codigo_no_configurado(
     prep.preprocesar_todo()
 
     calls = [str(c) for c in session.run.call_args_list]
-    assert not any(
-        "EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls
-    )
+    assert not any("EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls)
 
 
 # --------------------------------------------------------------------------- #

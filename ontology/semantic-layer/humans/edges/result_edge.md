@@ -4,4 +4,4 @@ Arista dinámica (:UserQuery)-[:RESULT_EDGE]->(:Norma). Creada por el LLM en run
 
 | Atributo | Tipo | Obligatorio | Descripción | Ejemplo |
 |---|---|---|---|---|
-| texto | string | sí | Texto resumen de qué resuelve la bbdd_query que generó esta arista | Las 5 normas más modificadas por otras normas. |
+| texto | string | sí | Motivo de la consulta tool_use que generó esta arista | `Reales decretos vigentes del Ministerio de Hacienda` |

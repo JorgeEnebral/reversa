@@ -45,6 +45,4 @@ def preprocess_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
 @pytest.fixture()
 def test_preprocess_settings(preprocess_test_dir: Path) -> Settings:
     """Settings con PreprocessConfig apuntando al directorio temporal del test."""
-    return Settings(
-        preprocess=PreprocessConfig(ontology_dir=preprocess_test_dir)
-    )
+    return Settings(preprocess=PreprocessConfig(ontology_dir=preprocess_test_dir))

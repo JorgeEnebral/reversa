@@ -25,10 +25,8 @@ class SigmaCanvas:
 
     def __init__(
         self,
-        on_node_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-        | None = None,
-        on_edge_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-        | None = None,
+        on_node_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
+        on_edge_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
         height: int = 600,
     ) -> None:
         self._on_node_click = on_node_click
@@ -38,9 +36,7 @@ class SigmaCanvas:
         with ui.element("div").style(
             f"width:100%;height:{height}px;position:relative;background:#1a1a2e;"
         ):
-            ui.html(
-                '<div id="sigma-canvas" style="width:100%;height:100%;"></div>'
-            )
+            ui.html('<div id="sigma-canvas" style="width:100%;height:100%;"></div>')
 
         self._timer = ui.timer(0.5, self._poll_clicks)
 
@@ -73,9 +69,7 @@ class SigmaCanvas:
             graph_data: dict con 'nodes' y 'edges' en formato sigma_bridge.
         """
         payload = json.dumps(graph_data, ensure_ascii=False, default=str)
-        await ui.run_javascript(
-            f"window.initSigma && window.initSigma({payload})", timeout=5.0
-        )
+        await ui.run_javascript(f"window.initSigma && window.initSigma({payload})", timeout=5.0)
 
     def stop(self) -> None:
         """Detiene el timer de sondeo."""
