@@ -85,8 +85,9 @@ def test_parser_aplica_flags_true(flags_default: ParseFlags) -> None:
     assert norma.rango_codigo == 1300
     assert norma.rango == "Ley"
     assert norma.fecha_publicacion == "2015-10-02"
-    assert norma.diario == "Boletín Oficial del Estado"
-    assert norma.departamento_codigo == 3681
+    # diario y departamento_codigo tienen flag=False en los defaults actuales
+    assert norma.diario is None
+    assert norma.departamento_codigo is None
 
 
 def test_parser_ignora_flags_false() -> None:
@@ -137,15 +138,33 @@ def test_parser_vigente_false_cuando_derogada(
     assert norma.vigente is False
 
 
-def test_parser_ignora_referencias_posteriores(
+def test_parser_extrae_referencias_posteriores(
     flags_default: ParseFlags,
 ) -> None:
-    """referencias_anteriores solo contiene las de <anteriores>, nunca <posteriores>."""
+    """referencias_posteriores contiene la entrada de <posteriores> del XML."""
     norma = parse_xml(FIXTURE_39, flags_default)
 
-    ids_referenciados = {r.id_norma for r in norma.referencias_anteriores}
-    # La posterior de BOE-A-2015-10565 apunta a BOE-A-2020-3824
-    assert "BOE-A-2020-3824" not in ids_referenciados
+    ids_post = {r.id_norma for r in norma.referencias_posteriores}
+    assert "BOE-A-2020-3824" in ids_post
+    # No contamina referencias_anteriores
+    ids_ant = {r.id_norma for r in norma.referencias_anteriores}
+    assert "BOE-A-2020-3824" not in ids_ant
+
+
+def test_parser_posteriores_codigo_correcto(
+    flags_default: ParseFlags,
+) -> None:
+    """El posterior de FIXTURE_39 tiene codigo 270 (MODIFICA)."""
+    norma = parse_xml(FIXTURE_39, flags_default)
+    post = next(r for r in norma.referencias_posteriores if r.id_norma == "BOE-A-2020-3824")
+    assert post.relacion_codigo == 270
+
+
+def test_parser_posteriores_vacio_si_flag_false() -> None:
+    """referencias_posteriores vacío cuando referencias_posteriores=False."""
+    flags = ParseFlags(analisis=AnalisisFlags(referencias_posteriores=False))
+    norma = parse_xml(FIXTURE_39, flags)
+    assert norma.referencias_posteriores == []
 
 
 def test_parser_filtra_codigos_no_configurados(
@@ -160,9 +179,10 @@ def test_parser_filtra_codigos_no_configurados(
     assert 440 not in settings.relacion.codigos_a_relacion
 
 
-def test_parser_extrae_materias(flags_default: ParseFlags) -> None:
+def test_parser_extrae_materias() -> None:
     """Materias se extraen como listas paralelas de códigos y textos."""
-    norma = parse_xml(FIXTURE_39, flags_default)
+    flags = ParseFlags(analisis=AnalisisFlags(materias=True))
+    norma = parse_xml(FIXTURE_39, flags)
 
     assert norma.materias_codigos == [1270, 1680, 3350]
     assert norma.materias is not None
@@ -580,6 +600,83 @@ def test_preprocesar_no_crea_arista_para_codigo_no_configurado(
 
     calls = [str(c) for c in session.run.call_args_list]
     assert not any("EN_RELACION_CON_440" in c or "DE_CONFORMIDAD" in c for c in calls)
+
+
+def test_dedup_posterior_origen_en_raw_no_genera_arista_extra(
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
+) -> None:
+    """Si el origen del posterior está en raw/, no se genera arista extra (la crean sus anteriores)."""
+    import shutil
+
+    session = mock_driver.session.return_value.__enter__.return_value
+
+    raw_2015 = tmp_path / "2015"
+    raw_2020 = tmp_path / "2020"
+    raw_2015.mkdir(parents=True)
+    raw_2020.mkdir(parents=True)
+    shutil.copy(FIXTURE_39, raw_2015 / "BOE-A-2015-10565.xml")
+    # Copiar cualquier XML con el nombre del origen del posterior → queda en raw_ids
+    shutil.copy(FIXTURE_39, raw_2020 / "BOE-A-2020-3824.xml")
+
+    prep = Preprocesador(config=test_preprocess_settings)
+    prep.api_raw_dir = tmp_path
+    prep.preprocesar_todo()
+
+    # No debe haber ninguna arista donde el src sea BOE-A-2020-3824 (viene de posteriores)
+    posterior_edge_calls = [
+        c for c in session.run.call_args_list if c.kwargs.get("src") == "BOE-A-2020-3824"
+    ]
+    assert len(posterior_edge_calls) == 0
+
+
+def test_dedup_posterior_origen_fuera_de_raw_genera_arista(
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
+) -> None:
+    """Si el origen del posterior NO está en raw/, se crea stub + arista invertida."""
+    import shutil
+
+    session = mock_driver.session.return_value.__enter__.return_value
+
+    raw_dir = tmp_path / "2015"
+    raw_dir.mkdir(parents=True)
+    shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
+    # BOE-A-2020-3824 NO está en raw/ → debe generarse arista desde posteriores
+
+    prep = Preprocesador(config=test_preprocess_settings)
+    prep.api_raw_dir = tmp_path
+    prep.preprocesar_todo()
+
+    # Debe existir arista: BOE-A-2020-3824 → BOE-A-2015-10565 (MODIFICA)
+    posterior_edge_calls = [
+        c for c in session.run.call_args_list if c.kwargs.get("src") == "BOE-A-2020-3824"
+    ]
+    assert len(posterior_edge_calls) == 1
+    assert posterior_edge_calls[0].kwargs["dst"] == "BOE-A-2015-10565"
+    assert "MODIFICA" in str(posterior_edge_calls[0].args[0])
+
+
+def test_faltantes_txt_escritos_despues_de_preprocesar(
+    mock_driver: MagicMock, test_preprocess_settings: Settings, tmp_path: Path
+) -> None:
+    """preprocesar_todo crea anteriores_faltantes.txt y posteriores_faltantes.txt."""
+    import shutil
+
+    raw_dir = tmp_path / "2015"
+    raw_dir.mkdir(parents=True)
+    shutil.copy(FIXTURE_39, raw_dir / "BOE-A-2015-10565.xml")
+
+    prep = Preprocesador(config=test_preprocess_settings)
+    prep.api_raw_dir = tmp_path
+    prep.preprocesar_todo()
+
+    preprocess_dir = test_preprocess_settings.preprocess.kinetic_subdir / "preprocess"
+    ant_file = preprocess_dir / "anteriores_faltantes.txt"
+    post_file = preprocess_dir / "posteriores_faltantes.txt"
+
+    assert ant_file.exists()
+    assert post_file.exists()
+    # BOE-A-2020-3824 es el origen del posterior → debe estar en posteriores_faltantes
+    assert "BOE-A-2020-3824" in post_file.read_text()
 
 
 # --------------------------------------------------------------------------- #

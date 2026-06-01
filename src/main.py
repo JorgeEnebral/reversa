@@ -23,7 +23,7 @@ def main() -> None:
         port=settings.web.port,
         title=settings.web.title,
         reload=False,
-        dark=True,
+        dark=False,
     )
 
 

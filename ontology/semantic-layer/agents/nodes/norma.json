@@ -11,41 +11,6 @@
           "BOE-A-2015-10565"
         ]
       },
-      "fecha_actualizacion": {
-        "type": "string",
-        "description": "Fecha de última actualización ISO-8601",
-        "examples": [
-          "20251201T120000Z"
-        ]
-      },
-      "ambito_codigo": {
-        "type": "integer",
-        "description": "Código del ámbito territorial (1=Estatal, 2=Autonómico…)",
-        "examples": [
-          1
-        ]
-      },
-      "ambito": {
-        "type": "string",
-        "description": "Texto del ámbito territorial (e.g. Estatal)",
-        "examples": [
-          "Estatal"
-        ]
-      },
-      "departamento_codigo": {
-        "type": "integer",
-        "description": "Código del departamento emisor",
-        "examples": [
-          3681
-        ]
-      },
-      "departamento": {
-        "type": "string",
-        "description": "Nombre del departamento emisor",
-        "examples": [
-          "Jefatura del Estado"
-        ]
-      },
       "rango_codigo": {
         "type": "integer",
         "description": "Código del rango normativo",
@@ -81,25 +46,11 @@
           "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común"
         ]
       },
-      "diario": {
-        "type": "string",
-        "description": "Nombre del boletín oficial",
-        "examples": [
-          "Boletín Oficial del Estado"
-        ]
-      },
       "fecha_publicacion": {
         "type": "string",
         "description": "Fecha de publicación en el boletín YYYY-MM-DD",
         "examples": [
           "2015-10-02"
-        ]
-      },
-      "diario_numero": {
-        "type": "integer",
-        "description": "Número del boletín oficial",
-        "examples": [
-          236
         ]
       },
       "fecha_vigencia": {
@@ -164,45 +115,6 @@
         "examples": [
           "Finalizado"
         ]
-      },
-      "url_eli": {
-        "type": "string",
-        "description": "URL ELI de la norma",
-        "examples": [
-          "https://www.boe.es/eli/es/l/2015/10/01/39"
-        ]
-      },
-      "url_html_consolidada": {
-        "type": "string",
-        "description": "URL HTML de la versión consolidada",
-        "examples": [
-          "https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565"
-        ]
-      },
-      "materias_codigos": {
-        "type": "array",
-        "items": {
-          "type": "integer"
-        },
-        "description": "Códigos de materias temáticas",
-        "examples": [
-          [
-            1270,
-            1680
-          ]
-        ]
-      },
-      "materias": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Textos de materias temáticas",
-        "examples": [
-          [
-            "Administración Pública"
-          ]
-        ]
       }
     },
     "required": [
@@ -212,19 +124,12 @@
   },
   "example": {
     "id": "BOE-A-2015-10565",
-    "fecha_actualizacion": "20251201T120000Z",
-    "ambito_codigo": 1,
-    "ambito": "Estatal",
-    "departamento_codigo": 3681,
-    "departamento": "Jefatura del Estado",
     "rango_codigo": 1300,
     "rango": "Ley",
     "fecha_disposicion": "2015-10-01",
     "numero_oficial": "39/2015",
     "titulo": "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común",
-    "diario": "Boletín Oficial del Estado",
     "fecha_publicacion": "2015-10-02",
-    "diario_numero": 236,
     "fecha_vigencia": "2015-10-02",
     "estatus_derogacion": "N",
     "fecha_derogacion": "2022-05-18",
@@ -233,15 +138,6 @@
     "vigencia_agotada": "N",
     "vigente": true,
     "estado_consolidacion_codigo": 3,
-    "estado_consolidacion": "Finalizado",
-    "url_eli": "https://www.boe.es/eli/es/l/2015/10/01/39",
-    "url_html_consolidada": "https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565",
-    "materias_codigos": [
-      1270,
-      1680
-    ],
-    "materias": [
-      "Administración Pública"
-    ]
+    "estado_consolidacion": "Finalizado"
   }
 }

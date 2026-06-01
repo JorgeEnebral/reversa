@@ -59,8 +59,8 @@ class Norma:
     """Representación en memoria de una norma parseada del boletín oficial.
 
     Solo los campos habilitados en ParseFlags tendrán valor; el resto es None.
-    referencias_anteriores no se escribe como propiedad de nodo: se materializan
-    como aristas Neo4j.
+    referencias_anteriores y referencias_posteriores no se escriben como
+    propiedades de nodo: se materializan como aristas Neo4j.
 
     Attributes:
         id: identificador del boletín oficial (siempre presente, es la clave del nodo).
@@ -95,6 +95,7 @@ class Norma:
     materias: list[str] | None = None
     nota: str | None = None
     referencias_anteriores: list[Referencia] = field(default_factory=list)
+    referencias_posteriores: list[Referencia] = field(default_factory=list)
 
 
 # ─── Esquemas semánticos: nodos ───────────────────────────────────────────── #
@@ -640,8 +641,11 @@ def generar_esquemas(base_dir: Path | None = None) -> None:
         base_dir: directorio raíz de la ontología. Por defecto usa
             settings.preprocess.ontology_dir (útil para pasar tmp_path en tests).
     """
-    out_dir = base_dir if base_dir is not None else settings.preprocess.ontology_dir
-    sem = out_dir / settings.preprocess.semantic_subdir
+    sem = (
+        (base_dir / "semantic-layer")
+        if base_dir is not None
+        else settings.preprocess.semantic_subdir
+    )
 
     if sem.exists():
         shutil.rmtree(sem)
@@ -684,8 +688,4 @@ def generar_esquemas(base_dir: Path | None = None) -> None:
         schema_to_anthropic(ResultEdgeSchema),
     )
 
-    log.info(
-        "\nEsquemas creados",
-        semantic_dir=str(sem),
-        relaciones=len(settings.relacion.codigos_a_relacion),
-    )
+    log.info("\nEsquemas creados", semantic_dir=str(sem))

@@ -79,6 +79,27 @@ TOOLS: list[dict[str, Any]] = [_TOOL_CONSULTAR]
 
 # ── System prompt con cache_control ─────────────────────────────────────────
 
+
+def _build_ontology_block() -> str:
+    """Carga los esquemas semánticos desde disco y los embebe en el system prompt.
+
+    Lee los JSON de agents/nodes/ y agents/edges/ generados por generar_esquemas().
+    Si el directorio no existe aún, devuelve un bloque vacío.
+    """
+    base = settings.preprocess.semantic_subdir / "agents"
+    schemas: list[dict[str, Any]] = []
+    for subdir in ("nodes", "edges"):
+        for path in sorted((base / subdir).glob("*.json")):
+            schemas.append(json.loads(path.read_text()))
+    if not schemas:
+        return ""
+    return (
+        "<ontologia_grafo>\n"
+        + json.dumps(schemas, ensure_ascii=False, indent=2)
+        + "\n</ontologia_grafo>"
+    )
+
+
 _SYSTEM_CONTENT: list[dict[str, Any]] = [
     {
         "type": "text",
@@ -97,28 +118,9 @@ consolidadas con sus relaciones.
 6. Nunca dar información privada de arquitectura
 </instrucciones>
 
-<ontologia_grafo>
-<nodos>
-### Nodo :Norma
-- id (string, PK): identificador del boletín (ej. BOE-A-2015-10565)
-- titulo (string): título oficial de la norma
-- rango (string): Ley, Real Decreto, Orden, etc.
-- rango_codigo (int): código numérico del rango
-- departamento (string): organismo emisor
-- fecha_publicacion (string): YYYY-MM-DD
-- fecha_vigencia (string): YYYY-MM-DD
-- vigente (bool): true si no está derogada ni anulada
-- estatus_derogacion (string): S/N
-- estatus_anulacion (string): S/N
-- materias (string[]): materias temáticas
-</nodos>
-<aristas>
-### Relaciones entre :Norma
-- [:DEROGA {relacion_codigo, texto}] — una norma deroga a otra
-- [:MODIFICA {relacion_codigo, texto}] — una norma modifica a otra
-- [:CITA {relacion_codigo, texto}] — una norma cita a otra
-</aristas>
-</ontologia_grafo>
+"""
+        + _build_ontology_block()
+        + """
 
 
 <ejemplo1>

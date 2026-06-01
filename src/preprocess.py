@@ -225,6 +225,19 @@ def _parse_analisis(analisis_el: Any, norma: Norma, flags: ParseFlags) -> None:
                         texto=ant.findtext("texto", ""),
                     )
                 )
+    if f.referencias_posteriores:
+        posteriores = analisis_el.find("referencias/posteriores")
+        if posteriores is not None:
+            for post in posteriores.findall("posterior"):
+                rel_el = post.find("relacion")
+                norma.referencias_posteriores.append(
+                    Referencia(
+                        id_norma=post.findtext("id_norma", ""),
+                        relacion_codigo=_int_attr(rel_el, "codigo") or 0,
+                        relacion=rel_el.text or "" if rel_el is not None else "",
+                        texto=post.findtext("texto", ""),
+                    )
+                )
 
 
 # --------------------------------------------------------------------------- #
@@ -255,13 +268,15 @@ class Preprocesador:
             auth=(config.neo4j.user, config.neo4j.password),
         )
         self._db = config.neo4j.database
-        self._ontology_dir = config.preprocess.ontology_dir
         self.api_raw_dir = config.api.raw_dir
+        self._raw_ids: set[str] | None = None
+        self._anteriores_faltantes: set[str] = set()
+        self._posteriores_faltantes: set[str] = set()
 
     def preprocesar_todo(self) -> ResumenPreproc:
         """Recorre todos los XMLs en ontology/kinetic-layer/api_boe/raw y los carga en Neo4j.
 
-        Al finalizar genera los esquemas.
+        Escribe faltantes y genera esquemas al finalizar.
 
         Returns:
             ResumenPreproc con totales de la operación.
@@ -270,6 +285,9 @@ class Preprocesador:
         year_dirs = sorted(p for p in self.api_raw_dir.iterdir() if p.is_dir())
         all_xmls = [f for d in year_dirs for f in sorted(d.glob("*.xml"))]
         self._limpiar_grafo()
+        self._raw_ids = None
+        self._anteriores_faltantes = set()
+        self._posteriores_faltantes = set()
 
         log.info("\nPreprocesando...")
         with self._driver.session(database=self._db) as s:
@@ -278,7 +296,9 @@ class Preprocesador:
                     bar.set_postfix_str(xml_path.stem, refresh=False)
                     self._procesar_fichero(xml_path, s, resumen)
 
-        generar_esquemas(base_dir=self._ontology_dir)
+        self.reintentar()
+        self._escribir_faltantes()
+        generar_esquemas()
         log.info(
             "\nPreprocesado completado",
             procesadas=resumen.procesadas,
@@ -286,7 +306,6 @@ class Preprocesador:
             aristas=resumen.aristas_upsert,
             errores=resumen.errores,
         )
-        self.reintentar()
         return resumen
 
     def _limpiar_grafo(self) -> None:
@@ -308,19 +327,9 @@ class Preprocesador:
 
         self._upsert_norma(session, norma)
         resumen.nodos_upsert += 1
-
-        for ref in norma.referencias_anteriores:
-            rel_type = self._cfg.relacion.codigos_a_relacion.get(ref.relacion_codigo)
-            if rel_type:
-                self._upsert_relacion(
-                    session,
-                    norma.id,
-                    rel_type,
-                    ref.id_norma,
-                    ref.relacion_codigo,
-                    ref.texto,
-                )
-                resumen.aristas_upsert += 1
+        resumen.aristas_upsert += self._materializar_aristas(
+            session, norma, self._ids_consolidados()
+        )
 
     def _upsert_norma(self, session: Any, norma: Norma) -> None:
         """Escribe o actualiza un nodo :Norma con MERGE."""
@@ -328,7 +337,8 @@ class Preprocesador:
         props = {
             k: v
             for k, v in raw.items()
-            if k not in ("id", "referencias_anteriores") and v is not None
+            if k not in ("id", "referencias_anteriores", "referencias_posteriores")
+            and v is not None
         }
         session.run(
             "MERGE (n:Norma {id: $id}) SET n += $props",
@@ -345,18 +355,94 @@ class Preprocesador:
         codigo: int,
         texto: str,
     ) -> None:
-        """Crea una arista tipada por cada referencia del XML.
+        """Crea una arista tipada entre dos nodos :Norma.
 
-        Usa MATCH en ambos nodos: si la norma destino no existe en el corpus
-        la arista se omite, garantizando que no se crean nodos stub.
-        rel_type ya está validado como valor en codigos_a_relacion.
+        Usa MERGE en ambos extremos: si alguno no existe en el corpus se crea
+        como stub {id} (nodo sin propiedades). rel_type ya está validado como
+        valor en codigos_a_relacion.
         """
         query = (
-            f"MATCH (a:Norma {{id: $src}})"
+            f"MERGE (a:Norma {{id: $src}})"
             f" MERGE (b:Norma {{id: $dst}})"
             f" CREATE (a)-[:{rel_type} {{codigo: $codigo, texto: $texto}}]->(b)"
         )
         session.run(query, src=src_id, dst=dst_id, codigo=codigo, texto=texto)
+
+    def _ids_consolidados(self) -> set[str]:
+        """Devuelve el conjunto de IDs de normas en raw/ (lazy, cacheado por instancia).
+
+        Se usa para la regla de dedup entre anteriores y posteriores.
+        """
+        if self._raw_ids is None:
+            if not self.api_raw_dir.exists():
+                self._raw_ids = set()
+            else:
+                self._raw_ids = {
+                    f.stem
+                    for d in self.api_raw_dir.iterdir()
+                    if d.is_dir()
+                    for f in d.glob("*.xml")
+                }
+        return self._raw_ids
+
+    def _materializar_aristas(self, session: Any, norma: Norma, raw_ids: set[str]) -> int:
+        """Crea aristas de anteriores y posteriores. Devuelve número creadas.
+
+        Anteriores: norma → ref. Si ref ∉ raw/, se crea stub y se registra en
+        _anteriores_faltantes.
+        Posteriores: ref → norma, solo cuando ref ∉ raw/ (dedup: si ref está en
+        raw/, su propio <anteriores> ya crea la arista). Los orígenes se registran
+        en _posteriores_faltantes.
+
+        Args:
+            session: sesión Neo4j activa.
+            norma: norma a materializar.
+            raw_ids: conjunto de IDs consolidados del corpus.
+
+        Returns:
+            Número de aristas creadas.
+        """
+        n = 0
+        codigos = self._cfg.relacion.codigos_a_relacion
+
+        for ref in norma.referencias_anteriores:
+            rel = codigos.get(ref.relacion_codigo)
+            if rel:
+                self._upsert_relacion(
+                    session, norma.id, rel, ref.id_norma, ref.relacion_codigo, ref.texto
+                )
+                n += 1
+                if ref.id_norma not in raw_ids:
+                    self._anteriores_faltantes.add(ref.id_norma)
+
+        for ref in norma.referencias_posteriores:
+            if ref.id_norma in raw_ids:
+                continue
+            rel = codigos.get(ref.relacion_codigo)
+            if rel:
+                self._upsert_relacion(
+                    session, ref.id_norma, rel, norma.id, ref.relacion_codigo, ref.texto
+                )
+                n += 1
+                self._posteriores_faltantes.add(ref.id_norma)
+
+        return n
+
+    def _escribir_faltantes(self) -> None:
+        """Escribe anteriores_faltantes.txt y posteriores_faltantes.txt en kinetic-layer/preprocess/."""
+        preprocess_dir = self._cfg.preprocess.kinetic_subdir / "preprocess"
+        preprocess_dir.mkdir(parents=True, exist_ok=True)
+        (preprocess_dir / "anteriores_faltantes.txt").write_text(
+            "\n".join(sorted(self._anteriores_faltantes))
+        )
+        (preprocess_dir / "posteriores_faltantes.txt").write_text(
+            "\n".join(sorted(self._posteriores_faltantes))
+        )
+        log.info(
+            "Faltantes escritos",
+            anteriores=len(self._anteriores_faltantes),
+            posteriores=len(self._posteriores_faltantes),
+        )
 
     def reintentar(self) -> ResumenReintento:
         """Reintenta todos los XMLs en errors/.
@@ -380,17 +466,7 @@ class Preprocesador:
                 try:
                     norma = parse_xml(xml_path, flags=self._cfg.parse)
                     self._upsert_norma(s, norma)
-                    for ref in norma.referencias_anteriores:
-                        rel_type = self._cfg.relacion.codigos_a_relacion.get(ref.relacion_codigo)
-                        if rel_type:
-                            self._upsert_relacion(
-                                s,
-                                norma.id,
-                                rel_type,
-                                ref.id_norma,
-                                ref.relacion_codigo,
-                                ref.texto,
-                            )
+                    self._materializar_aristas(s, norma, self._ids_consolidados())
                     error_file.unlink()
                     resumen.recuperados += 1
                     log.info("Reintento Exitoso", path=str(xml_path))

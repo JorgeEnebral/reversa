@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Raíz del repositorio (reversa/). Ancla las rutas de la ontología de forma
@@ -58,14 +58,29 @@ class PreprocessConfig(BaseModel):
     """Rutas de la ontología. semantic-layer se regenera; dynamic-layer no."""
 
     ontology_dir: Path = PROJECT_ROOT / "ontology"
-    semantic_subdir: str = "semantic-layer"
-    kinetic_subdir: str = "kinetic-layer"
-    dynamic_subdir: str = "dynamic-layer"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def semantic_subdir(self) -> Path:
+        """Subdirectorio semantic-layer."""
+        return self.ontology_dir / "semantic-layer"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def kinetic_subdir(self) -> Path:
+        """Subdirectorio kinetic-layer."""
+        return self.ontology_dir / "kinetic-layer"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def dynamic_subdir(self) -> Path:
+        """Subdirectorio dynamic-layer."""
+        return self.ontology_dir / "dynamic-layer"
 
     @property
     def errors_dir(self) -> Path:
         """Directorio de errores de descarga."""
-        return self.ontology_dir / self.kinetic_subdir / "preprocess" / "errors"
+        return self.kinetic_subdir / "preprocess" / "errors"
 
 
 class MetadatosFlags(BaseModel):
@@ -77,16 +92,16 @@ class MetadatosFlags(BaseModel):
     """
 
     id: bool = True
-    fecha_actualizacion: bool = True
-    ambito: bool = True
-    departamento: bool = True
+    fecha_actualizacion: bool = False
+    ambito: bool = False
+    departamento: bool = False
     rango: bool = True
     fecha_disposicion: bool = True
     numero_oficial: bool = True
     titulo: bool = True
-    diario: bool = True
+    diario: bool = False
     fecha_publicacion: bool = True
-    diario_numero: bool = True
+    diario_numero: bool = False
     fecha_vigencia: bool = True
     estatus_derogacion: bool = True
     fecha_derogacion: bool = True
@@ -94,21 +109,23 @@ class MetadatosFlags(BaseModel):
     fecha_anulacion: bool = True
     vigencia_agotada: bool = True
     estado_consolidacion: bool = True
-    url_eli: bool = True
-    url_html_consolidada: bool = True
+    url_eli: bool = False
+    url_html_consolidada: bool = False
 
 
 class AnalisisFlags(BaseModel):
     """Controla qué campos de <analisis> se extraen.
 
-    Solo referencias_anteriores alimenta aristas en el grafo.
-    referencias_posteriores se omite: es redundante (cada relación aparece
-    en <anteriores> del actor y en <posteriores> del receptor).
+    referencias_anteriores y referencias_posteriores materializan aristas Neo4j.
+    Anteriores: aristas donde la norma actual es el origen (norma → ref).
+    Posteriores: solo cuando el origen no está en raw/ — evita duplicados y
+    recupera aristas cuyo origen no tiene fichero propio en el corpus.
     """
 
-    materias: bool = True
+    materias: bool = False
     notas: bool = False
     referencias_anteriores: bool = True
+    referencias_posteriores: bool = True
 
 
 class MetadataEliFlags(BaseModel):
@@ -168,7 +185,7 @@ class LLMConfig(BaseModel):
     max_tokens: int = 1000
     temperature: float = 0.2
     max_exchanges: int = (
-        2  # Nº de exchanges completos (user→tools→answer) en el historial deslizante
+        1  # Nº de exchanges completos (user→tools→answer) en el historial deslizante
     )
 
 

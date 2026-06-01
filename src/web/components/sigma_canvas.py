@@ -1,8 +1,22 @@
 """
 Componente NiceGUI que envuelve el canvas de Sigma.js.
 
-Monta un div con id 'sigma-canvas', inicializa Sigma vía sigma_bridge.js
-y sondea los eventos de click cada 500 ms para devolverlos a Python.
+Diseño del contenedor
+---------------------
+El canvas usa ``position:absolute; inset:0`` en lugar de ``height:100%``
+porque NiceGUI envuelve ``ui.html(...)`` en un ``<div class="nicegui-html">``
+cuya altura es ``auto`` (0 si el contenido está fuera del flujo). La cadena
+``height:100%`` se rompería ahí. Con ``position:absolute; inset:0`` el div
+se ancla directamente al ancestro ``position:relative`` más cercano (la
+columna central de ``graph.py``), cuya altura sí está definida en píxeles.
+
+Detección de clicks
+-------------------
+Los eventos JS→Python se gestionan por sondeo (``ui.timer`` cada 500 ms)
+en lugar de ``emitEvent`` por simplicidad: el flujo ``emitEvent → ui.on``
+requiere que el websocket esté establecido en el momento del click, mientras
+que el sondeo es tolerante a reconexiones. La latencia de 500 ms es
+imperceptible en un grafo de exploración.
 """
 
 from __future__ import annotations
@@ -17,31 +31,38 @@ from nicegui import ui
 class SigmaCanvas:
     """Wrapper NiceGUI alrededor del canvas Sigma.js.
 
+    Renderiza el div contenedor de Sigma, le envía payloads de grafo vía
+    ``window.initSigma(graphData)`` y sondea clicks para devolverlos a Python.
+
     Args:
-        on_node_click: corrutina llamada con {id, attrs} cuando se clica un nodo.
-        on_edge_click: corrutina llamada con {id, src, dst, attrs} al clicar arista.
-        height: altura del canvas en píxeles.
+        on_node_click: Corrutina llamada con ``{id, attrs}`` al clicar un nodo.
+        on_edge_click: Corrutina llamada con ``{id, src, dst, attrs}`` al clicar arista.
     """
 
     def __init__(
         self,
         on_node_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
         on_edge_click: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
-        height: int = 600,
     ) -> None:
         self._on_node_click = on_node_click
         self._on_edge_click = on_edge_click
+        # Clave del último click procesado; evita disparar el callback dos veces
+        # cuando el sondeo ocurre antes de que el usuario haga click de nuevo.
         self._last_click_key: str = ""
 
-        with ui.element("div").style(
-            f"width:100%;height:{height}px;position:relative;background:#1a1a2e;"
-        ):
-            ui.html('<div id="sigma-canvas" style="width:100%;height:100%;"></div>')
+        # El ancestro position:relative es la columna central definida en graph.py.
+        # inset:0 equivale a top:0; right:0; bottom:0; left:0.
+        ui.html('<div id="sigma-canvas" style="position:absolute;inset:0;"></div>')
 
         self._timer = ui.timer(0.5, self._poll_clicks)
 
     async def _poll_clicks(self) -> None:
-        """Sondea window.getLastClick() para detectar clicks desde JS."""
+        """Sondea ``window.getLastClick()`` para detectar clicks desde JS.
+
+        ``getLastClick()`` consume el click (lo resetea a null) al leerlo,
+        por lo que cada evento se procesa exactamente una vez aunque el timer
+        dispare varias veces antes del siguiente click.
+        """
         result: dict[str, Any] | None = await ui.run_javascript(
             "return window.getLastClick ? window.getLastClick() : null",
             timeout=1.0,
@@ -51,6 +72,7 @@ class SigmaCanvas:
 
         node = result.get("node")
         edge = result.get("edge")
+        # Serializar como clave para detectar si es el mismo evento que la vez anterior.
         click_key = json.dumps(result, sort_keys=True, default=str)
 
         if click_key == self._last_click_key or (not node and not edge):
@@ -63,14 +85,19 @@ class SigmaCanvas:
             await self._on_edge_click(edge)
 
     async def load_graph(self, graph_data: dict[str, Any]) -> None:
-        """Envía datos al canvas Sigma.js.
+        """Envía datos al canvas Sigma.js llamando a ``window.initSigma``.
+
+        El payload se serializa con ``ensure_ascii=True`` para escapar caracteres
+        no-ASCII (incluidos U+2028/U+2029, ilegales en literales de string JS),
+        garantizando que el JSON embebido en el script sea siempre JS válido.
 
         Args:
-            graph_data: dict con 'nodes' y 'edges' en formato sigma_bridge.
+            graph_data: Dict ``{"nodes": [...], "edges": [...]}`` producido por
+                ``graph_repo.fetch_graph``.
         """
-        payload = json.dumps(graph_data, ensure_ascii=False, default=str)
-        await ui.run_javascript(f"window.initSigma && window.initSigma({payload})", timeout=5.0)
+        payload = json.dumps(graph_data, ensure_ascii=True, default=str)
+        await ui.run_javascript(f"window.initSigma && window.initSigma({payload})", timeout=10.0)
 
     def stop(self) -> None:
-        """Detiene el timer de sondeo."""
+        """Detiene el timer de sondeo (p.ej. al destruir la página)."""
         self._timer.cancel()
