@@ -6,112 +6,112 @@
     "properties": {
       "id": {
         "type": "string",
-        "description": "Identificador del boletín oficial (e.g. BOE-A-2015-10565)",
+        "description": "Identificador único asignado por el BOE a cada disposición publicada. Sigue el patrón BOE-[sección]-[año]-[secuencia]: la sección A corresponde a disposiciones generales (leyes, reales decretos, órdenes ministeriales), B a disposiciones de las CCAA, C a anuncios de concursos y subastas y D a anuncios varios. Úsalo para recuperar o enlazar una norma de forma inequívoca.",
         "examples": [
           "BOE-A-2015-10565"
         ]
       },
       "rango_codigo": {
         "type": "integer",
-        "description": "Código del rango normativo",
+        "description": "Código numérico del rango normativo según el catálogo del BOE. Refleja la jerarquía formal del ordenamiento jurídico español: p. ej. ~1300 = Ley Orgánica, ~1310 = Ley Ordinaria, ~1340 = Real Decreto-ley, ~1350 = Real Decreto, ~1400 = Orden Ministerial. Úsalo para filtrar por nivel jerárquico o para ordenar normas de mayor a menor rango.",
         "examples": [
-          1300
+          1340
         ]
       },
       "rango": {
         "type": "string",
-        "description": "Texto del rango (e.g. Ley, Real Decreto)",
+        "description": "Denominación textual del rango normativo (p. ej. 'Ley Orgánica', 'Real Decreto', 'Orden ministerial', 'Resolución'). Derivada de `rango_codigo`. Úsala en presentación o búsquedas en lenguaje natural; para filtros exactos prefiere el código.",
         "examples": [
-          "Ley"
+          "Real Decreto"
         ]
       },
       "fecha_disposicion": {
         "type": "string",
-        "description": "Fecha de disposición YYYY-MM-DD",
+        "description": "Fecha en que el órgano competente firmó o dictó la norma (formato YYYY-MM-DD). Es la fecha jurídica de creación del acto y la que aparece en el título oficial (p. ej. 'Ley 39/2015, de 1 de octubre'). Puede diferir de `fecha_publicacion` en varios días o semanas. Filtra por este campo cuando interese cuándo se adoptó la decisión normativa, independientemente de cuándo se publicó.",
         "examples": [
           "2015-10-01"
         ]
       },
       "numero_oficial": {
         "type": "string",
-        "description": "Número oficial de la norma",
+        "description": "Número secuencial oficial asignado a la norma dentro de su rango y año, tal y como aparece en el título (p. ej. '39/2015' para la Ley 39/2015). En combinación con `rango` y `fecha_disposicion` permite identificar inequívocamente la norma con la cita jurídica habitual. Útil para búsquedas cuando el usuario conoce el número pero no el identificador BOE.",
         "examples": [
           "39/2015"
         ]
       },
       "titulo": {
         "type": "string",
-        "description": "Título oficial de la norma",
+        "description": "Título completo y oficial de la disposición tal y como aparece publicado en el BOE (p. ej. 'Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas'). Es el campo de texto libre más descriptivo de la norma. Úsalo para búsqueda semántica o fulltext, para mostrar al usuario y para generar citas bibliográficas jurídicas.",
         "examples": [
           "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común"
         ]
       },
       "fecha_publicacion": {
         "type": "string",
-        "description": "Fecha de publicación en el boletín YYYY-MM-DD",
+        "description": "Fecha en que la norma apareció publicada en el boletín oficial (formato YYYY-MM-DD). Marca el inicio del cómputo de plazos legales para los ciudadanos, salvo que la propia norma establezca una vacatio legis distinta. Puede coincidir con `fecha_vigencia` (si entra en vigor el mismo día de publicación) o diferir (p. ej. 20 días de vacatio). Úsalo para filtrar normas publicadas en un periodo concreto o para ordenar cronológicamente.",
         "examples": [
           "2015-10-02"
         ]
       },
       "fecha_vigencia": {
         "type": "string",
-        "description": "Fecha de entrada en vigor YYYY-MM-DD",
+        "description": "Fecha a partir de la cual la norma produce efectos jurídicos (entrada en vigor), en formato YYYY-MM-DD. Puede coincidir con `fecha_publicacion` (entrada en vigor inmediata), ser posterior por vacatio legis (p. ej. 20 días para leyes ordinarias según el art. 2.1 CC) o, excepcionalmente, ser anterior a la publicación en caso de retroactividad. Filtra por este campo cuando quieras saber qué normas estaban en vigor en una fecha determinada.",
         "examples": [
           "2015-10-02"
         ]
       },
       "estatus_derogacion": {
         "type": "string",
-        "description": "S/N — norma derogada",
+        "description": "Indicador 'S'/'N' que señala si la norma ha sido derogada expresa o tácitamente por una disposición posterior. 'S' = derogada (total o parcialmente), 'N' = no derogada. Una norma derogada deja de aplicarse desde `fecha_derogacion`. Combínalo con `estatus_anulacion` y `vigencia_agotada` — o directamente con el campo derivado `vigente` — para determinar si la norma está en vigor.",
         "examples": [
           "N"
         ]
       },
       "fecha_derogacion": {
         "type": "string",
-        "description": "Fecha de derogación YYYY-MM-DD",
+        "description": "Fecha en que la norma fue derogada (formato YYYY-MM-DD). Solo tiene valor cuando `estatus_derogacion = 'S'`. Permite determinar el periodo de vigencia efectiva de la norma (entre `fecha_vigencia` y `fecha_derogacion`) y consultar qué régimen jurídico aplicaba en una fecha histórica concreta.",
         "examples": [
           "2022-05-18"
         ]
       },
       "estatus_anulacion": {
         "type": "string",
-        "description": "S/N — norma judicialmente anulada",
+        "description": "Indicador 'S'/'N' que señala si la norma ha sido declarada nula por resolución judicial firme (habitualmente del Tribunal Constitucional o del Tribunal Supremo). 'S' = anulada judicialmente, 'N' = no anulada. La anulación tiene efectos ex tunc (retroactivos) a diferencia de la derogación. Combínalo con `estatus_derogacion` y `vigencia_agotada` para calcular `vigente`.",
         "examples": [
           "N"
         ]
       },
       "fecha_anulacion": {
         "type": "string",
-        "description": "Fecha de anulación YYYY-MM-DD",
+        "description": "Fecha de la resolución judicial que declaró la nulidad de la norma (formato YYYY-MM-DD). Solo tiene valor cuando `estatus_anulacion = 'S'`. Permite identificar a partir de qué momento la norma quedó sin efecto por decisión judicial, y distinguirla de la derogación legislativa.",
         "examples": [
           "2022-05-18"
         ]
       },
       "vigencia_agotada": {
         "type": "string",
-        "description": "S/N — vigencia agotada por cumplimiento de plazo",
+        "description": "Indicador 'S'/'N' que señala si la norma ha perdido vigencia por el transcurso del plazo para el que fue dictada, sin necesidad de derogación expresa ni anulación judicial. Típico en decretos de convocatoria, normas de emergencia con plazo fijo o disposiciones transitorias. 'S' = vigencia agotada, 'N' = no agotada. Combínalo con los otros dos estatus o usa directamente `vigente`.",
         "examples": [
           "N"
         ]
       },
       "vigente": {
         "type": "boolean",
-        "description": "Calculado: true si estatus_derogacion=N AND estatus_anulacion=N AND vigencia_agotada=N",
+        "description": "Campo derivado. Vale `true` únicamente cuando los tres indicadores de cese son negativos: estatus_derogacion = 'N' AND estatus_anulacion = 'N' AND vigencia_agotada = 'N'. Vale `false` si cualquiera de ellos es 'S'. Es el filtro principal para restringir búsquedas a normativa actualmente aplicable; usa `vigente = true` como condición base en la gran mayoría de consultas de usuario salvo que se pida expresamente normativa histórica o derogada.",
         "examples": [
           true
         ]
       },
       "estado_consolidacion_codigo": {
         "type": "integer",
-        "description": "Código del estado de consolidación",
+        "description": "Código numérico del estado de trabajo editorial del texto consolidado según el catálogo del BOE. Indica el grado de actualización del texto unificado respecto a las modificaciones publicadas. Úsalo cuando necesites filtrar solo normas cuyo texto consolidado esté completamente al día.",
         "examples": [
           3
         ]
       },
       "estado_consolidacion": {
         "type": "string",
-        "description": "Texto del estado de consolidación",
+        "description": "Estado editorial del texto consolidado de la norma. Siempre se trata de texto consolidado (integra modificaciones en un único documento), pero puede estar en dos estados: 'Finalizado' — el equipo técnico del BOE ha integrado todas las modificaciones, correcciones y derogaciones parciales publicadas hasta la fecha; el texto es fiable para aplicar directamente. 'Desactualizado' — existe al menos una modificación publicada en el BOE que aún no ha sido integrada en el texto único por el personal técnico; el texto puede estar incompleto. Filtra por 'Finalizado' cuando necesites texto normativo listo para análisis o aplicación; advierte al usuario cuando el estado sea 'Desactualizado'.",
         "examples": [
           "Finalizado"
         ]
@@ -124,8 +124,8 @@
   },
   "example": {
     "id": "BOE-A-2015-10565",
-    "rango_codigo": 1300,
-    "rango": "Ley",
+    "rango_codigo": 1340,
+    "rango": "Real Decreto",
     "fecha_disposicion": "2015-10-01",
     "numero_oficial": "39/2015",
     "titulo": "Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común",

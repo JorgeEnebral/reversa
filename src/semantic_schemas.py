@@ -118,126 +118,267 @@ class NormaSchema(BaseModel):
     )
 
     id: str = Field(
-        description="Identificador del boletín oficial (e.g. BOE-A-2015-10565)",
+        description=(
+            "Identificador único asignado por el BOE a cada disposición publicada. "
+            "Sigue el patrón BOE-[sección]-[año]-[secuencia]: la sección A corresponde "
+            "a disposiciones generales (leyes, reales decretos, órdenes ministeriales), "
+            "B a disposiciones de las CCAA, C a anuncios de concursos y subastas y D a "
+            "anuncios varios. Úsalo para recuperar o enlazar una norma de forma inequívoca."
+        ),
         examples=["BOE-A-2015-10565"],
     )
+
     fecha_actualizacion: str | None = Field(
         None,
-        description="Fecha de última actualización ISO-8601",
+        description=(
+            "Marca temporal ISO-8601 de la última vez que el sistema del BOE actualizó "
+            "los metadatos o el texto consolidado de esta norma. No coincide necesariamente "
+            "con ninguna fecha jurídica (publicación, vigor, derogación). Útil para detectar "
+            "si hay cambios recientes en la consolidación desde la última ingesta de datos, "
+            "o para filtrar normas cuya ficha ha cambiado en un periodo concreto."
+        ),
         examples=["20251201T120000Z"],
         json_schema_extra={"x_flags": ["metadatos.fecha_actualizacion"]},
     )
+
     ambito_codigo: int | None = Field(
         None,
-        description="Código del ámbito territorial (1=Estatal, 2=Autonómico…)",
+        description=(
+            "Código numérico que identifica el ámbito territorial de aplicación de la norma "
+            "según el catálogo del BOE. Los valores más frecuentes son: 1 = Estatal, "
+            "2 = Autonómico, 3 = Provincial, 4 = Local. Usa este campo (en lugar de `ambito`) "
+            "cuando necesites hacer JOIN con otras tablas, agrupar o comparar ámbitos de forma "
+            "eficiente en consultas Cypher o SQL."
+        ),
         examples=[1],
         json_schema_extra={"x_flags": ["metadatos.ambito"]},
     )
+
     ambito: str | None = Field(
         None,
-        description="Texto del ámbito territorial (e.g. Estatal)",
+        description=(
+            "Etiqueta legible del ámbito territorial (p. ej. 'Estatal', 'Autonómico', "
+            "'Local'). Derivada del código `ambito_codigo`. Úsala para mostrar al usuario "
+            "o para filtrar en lenguaje natural; para filtros programáticos prefiere el código."
+        ),
         examples=["Estatal"],
         json_schema_extra={"x_flags": ["metadatos.ambito"]},
     )
+
     departamento_codigo: int | None = Field(
         None,
-        description="Código del departamento emisor",
+        description=(
+            "Código numérico del organismo o departamento que emite la disposición, según "
+            "el catálogo oficial del BOE (p. ej. 3681 = Jefatura del Estado, 3682 = Presidencia "
+            "del Gobierno, 3695 = Ministerio de Hacienda). Permite filtrar todas las normas "
+            "dictadas por un ministerio concreto de forma consistente aunque cambie su nombre "
+            "entre legislaturas."
+        ),
         examples=[3681],
         json_schema_extra={"x_flags": ["metadatos.departamento"]},
     )
+
     departamento: str | None = Field(
         None,
-        description="Nombre del departamento emisor",
+        description=(
+            "Nombre oficial del organismo emisor en el momento de la publicación "
+            "(p. ej. 'Jefatura del Estado', 'Ministerio de Transición Ecológica'). "
+            "Puede variar entre legislaturas aunque el código permanezca estable. "
+            "Útil para presentación; para filtros fiables usa `departamento_codigo`."
+        ),
         examples=["Jefatura del Estado"],
         json_schema_extra={"x_flags": ["metadatos.departamento"]},
     )
+
     rango_codigo: int | None = Field(
         None,
-        description="Código del rango normativo",
-        examples=[1300],
+        description=(
+            "Código numérico del rango normativo según el catálogo del BOE. Refleja la "
+            "jerarquía formal del ordenamiento jurídico español: p. ej. ~1300 = Ley Orgánica, "
+            "~1310 = Ley Ordinaria, ~1340 = Real Decreto-ley, ~1350 = Real Decreto, "
+            "~1400 = Orden Ministerial. Úsalo para filtrar por nivel jerárquico o para "
+            "ordenar normas de mayor a menor rango."
+        ),
+        examples=[1340],
         json_schema_extra={"x_flags": ["metadatos.rango"]},
     )
+
     rango: str | None = Field(
         None,
-        description="Texto del rango (e.g. Ley, Real Decreto)",
-        examples=["Ley"],
+        description=(
+            "Denominación textual del rango normativo (p. ej. 'Ley Orgánica', 'Real Decreto', "
+            "'Orden ministerial', 'Resolución'). Derivada de `rango_codigo`. Úsala en presentación "
+            "o búsquedas en lenguaje natural; para filtros exactos prefiere el código."
+        ),
+        examples=["Real Decreto"],
         json_schema_extra={"x_flags": ["metadatos.rango"]},
     )
+
     fecha_disposicion: str | None = Field(
         None,
-        description="Fecha de disposición YYYY-MM-DD",
+        description=(
+            "Fecha en que el órgano competente firmó o dictó la norma (formato YYYY-MM-DD). "
+            "Es la fecha jurídica de creación del acto y la que aparece en el título oficial "
+            "(p. ej. 'Ley 39/2015, de 1 de octubre'). Puede diferir de `fecha_publicacion` "
+            "en varios días o semanas. Filtra por este campo cuando interese cuándo se adoptó "
+            "la decisión normativa, independientemente de cuándo se publicó."
+        ),
         examples=["2015-10-01"],
         json_schema_extra={"x_flags": ["metadatos.fecha_disposicion"]},
     )
+
     numero_oficial: str | None = Field(
         None,
-        description="Número oficial de la norma",
+        description=(
+            "Número secuencial oficial asignado a la norma dentro de su rango y año, "
+            "tal y como aparece en el título (p. ej. '39/2015' para la Ley 39/2015). "
+            "En combinación con `rango` y `fecha_disposicion` permite identificar "
+            "inequívocamente la norma con la cita jurídica habitual. Útil para búsquedas "
+            "cuando el usuario conoce el número pero no el identificador BOE."
+        ),
         examples=["39/2015"],
         json_schema_extra={"x_flags": ["metadatos.numero_oficial"]},
     )
+
     titulo: str | None = Field(
         None,
-        description="Título oficial de la norma",
+        description=(
+            "Título completo y oficial de la disposición tal y como aparece publicado en el BOE "
+            "(p. ej. 'Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de "
+            "las Administraciones Públicas'). Es el campo de texto libre más descriptivo de la "
+            "norma. Úsalo para búsqueda semántica o fulltext, para mostrar al usuario y para "
+            "generar citas bibliográficas jurídicas."
+        ),
         examples=["Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común"],
         json_schema_extra={"x_flags": ["metadatos.titulo"]},
     )
+
     diario: str | None = Field(
         None,
-        description="Nombre del boletín oficial",
+        description=(
+            "Nombre del boletín oficial en el que se publicó la norma "
+            "(p. ej. 'Boletín Oficial del Estado', 'Diari Oficial de la Generalitat de Catalunya'). "
+            "La mayoría de normas estatales aparecen en el BOE, pero normas autonómicas o locales "
+            "se publican en sus respectivos diarios. Filtra por este campo cuando quieras restringir "
+            "la búsqueda a un boletín concreto."
+        ),
         examples=["Boletín Oficial del Estado"],
         json_schema_extra={"x_flags": ["metadatos.diario"]},
     )
+
     fecha_publicacion: str | None = Field(
         None,
-        description="Fecha de publicación en el boletín YYYY-MM-DD",
+        description=(
+            "Fecha en que la norma apareció publicada en el boletín oficial (formato YYYY-MM-DD). "
+            "Marca el inicio del cómputo de plazos legales para los ciudadanos, salvo que la propia "
+            "norma establezca una vacatio legis distinta. Puede coincidir con `fecha_vigencia` (si "
+            "entra en vigor el mismo día de publicación) o diferir (p. ej. 20 días de vacatio). "
+            "Úsalo para filtrar normas publicadas en un periodo concreto o para ordenar cronológicamente."
+        ),
         examples=["2015-10-02"],
         json_schema_extra={"x_flags": ["metadatos.fecha_publicacion"]},
     )
+
     diario_numero: int | None = Field(
         None,
-        description="Número del boletín oficial",
+        description=(
+            "Número del ejemplar del boletín oficial en que se publicó la norma "
+            "(p. ej. 236 para el BOE núm. 236). Junto con `diario` y `fecha_publicacion`, "
+            "permite localizar la edición física o digital exacta del boletín. Útil para "
+            "verificar la fuente primaria o para recuperar otras disposiciones publicadas "
+            "en el mismo número."
+        ),
         examples=[236],
         json_schema_extra={"x_flags": ["metadatos.diario_numero"]},
     )
+
     fecha_vigencia: str | None = Field(
         None,
-        description="Fecha de entrada en vigor YYYY-MM-DD",
+        description=(
+            "Fecha a partir de la cual la norma produce efectos jurídicos (entrada en vigor), "
+            "en formato YYYY-MM-DD. Puede coincidir con `fecha_publicacion` (entrada en vigor "
+            "inmediata), ser posterior por vacatio legis (p. ej. 20 días para leyes ordinarias "
+            "según el art. 2.1 CC) o, excepcionalmente, ser anterior a la publicación en caso "
+            "de retroactividad. Filtra por este campo cuando quieras saber qué normas estaban "
+            "en vigor en una fecha determinada."
+        ),
         examples=["2015-10-02"],
         json_schema_extra={"x_flags": ["metadatos.fecha_vigencia"]},
     )
+
     estatus_derogacion: str | None = Field(
         None,
-        description="S/N — norma derogada",
+        description=(
+            "Indicador 'S'/'N' que señala si la norma ha sido derogada expresa o tácitamente "
+            "por una disposición posterior. 'S' = derogada (total o parcialmente), "
+            "'N' = no derogada. Una norma derogada deja de aplicarse desde `fecha_derogacion`. "
+            "Combínalo con `estatus_anulacion` y `vigencia_agotada` — o directamente con el "
+            "campo derivado `vigente` — para determinar si la norma está en vigor."
+        ),
         examples=["N"],
         json_schema_extra={"x_flags": ["metadatos.estatus_derogacion"]},
     )
+
     fecha_derogacion: str | None = Field(
         None,
-        description="Fecha de derogación YYYY-MM-DD",
+        description=(
+            "Fecha en que la norma fue derogada (formato YYYY-MM-DD). Solo tiene valor cuando "
+            "`estatus_derogacion = 'S'`. Permite determinar el periodo de vigencia efectiva de "
+            "la norma (entre `fecha_vigencia` y `fecha_derogacion`) y consultar qué régimen "
+            "jurídico aplicaba en una fecha histórica concreta."
+        ),
         examples=["2022-05-18"],
         json_schema_extra={"x_flags": ["metadatos.fecha_derogacion"]},
     )
+
     estatus_anulacion: str | None = Field(
         None,
-        description="S/N — norma judicialmente anulada",
+        description=(
+            "Indicador 'S'/'N' que señala si la norma ha sido declarada nula por resolución "
+            "judicial firme (habitualmente del Tribunal Constitucional o del Tribunal Supremo). "
+            "'S' = anulada judicialmente, 'N' = no anulada. La anulación tiene efectos ex tunc "
+            "(retroactivos) a diferencia de la derogación. Combínalo con `estatus_derogacion` y "
+            "`vigencia_agotada` para calcular `vigente`."
+        ),
         examples=["N"],
         json_schema_extra={"x_flags": ["metadatos.estatus_anulacion"]},
     )
+
     fecha_anulacion: str | None = Field(
         None,
-        description="Fecha de anulación YYYY-MM-DD",
+        description=(
+            "Fecha de la resolución judicial que declaró la nulidad de la norma "
+            "(formato YYYY-MM-DD). Solo tiene valor cuando `estatus_anulacion = 'S'`. "
+            "Permite identificar a partir de qué momento la norma quedó sin efecto por "
+            "decisión judicial, y distinguirla de la derogación legislativa."
+        ),
         examples=["2022-05-18"],
-        json_schema_extra={"x_flags": ["metadatos.fecha_anulacion"]},
+        json_schema_extra={"x_flags": ["metadatos.estatus_anulacion"]},
     )
+
     vigencia_agotada: str | None = Field(
         None,
-        description="S/N — vigencia agotada por cumplimiento de plazo",
+        description=(
+            "Indicador 'S'/'N' que señala si la norma ha perdido vigencia por el transcurso "
+            "del plazo para el que fue dictada, sin necesidad de derogación expresa ni anulación "
+            "judicial. Típico en decretos de convocatoria, normas de emergencia con plazo fijo "
+            "o disposiciones transitorias. 'S' = vigencia agotada, 'N' = no agotada. "
+            "Combínalo con los otros dos estatus o usa directamente `vigente`."
+        ),
         examples=["N"],
         json_schema_extra={"x_flags": ["metadatos.vigencia_agotada"]},
     )
+
     vigente: bool | None = Field(
         None,
-        description="Calculado: true si estatus_derogacion=N AND estatus_anulacion=N AND vigencia_agotada=N",
+        description=(
+            "Campo derivado. Vale `true` únicamente cuando los tres indicadores de cese son "
+            "negativos: estatus_derogacion = 'N' AND estatus_anulacion = 'N' AND "
+            "vigencia_agotada = 'N'. Vale `false` si cualquiera de ellos es 'S'. "
+            "Es el filtro principal para restringir búsquedas a normativa actualmente aplicable; "
+            "usa `vigente = true` como condición base en la gran mayoría de consultas de usuario "
+            "salvo que se pida expresamente normativa histórica o derogada."
+        ),
         examples=[True],
         json_schema_extra={
             "x_flags": [
@@ -247,45 +388,102 @@ class NormaSchema(BaseModel):
             ]
         },
     )
+
     estado_consolidacion_codigo: int | None = Field(
         None,
-        description="Código del estado de consolidación",
+        description=(
+            "Código numérico del estado de trabajo editorial del texto consolidado según el "
+            "catálogo del BOE. Indica el grado de actualización del texto unificado respecto "
+            "a las modificaciones publicadas. Úsalo cuando necesites filtrar solo normas cuyo "
+            "texto consolidado esté completamente al día."
+        ),
         examples=[3],
         json_schema_extra={"x_flags": ["metadatos.estado_consolidacion"]},
     )
+
     estado_consolidacion: str | None = Field(
         None,
-        description="Texto del estado de consolidación",
+        description=(
+            "Estado editorial del texto consolidado de la norma. Siempre se trata de texto "
+            "consolidado (integra modificaciones en un único documento), pero puede estar en "
+            "dos estados: "
+            "'Finalizado' — el equipo técnico del BOE ha integrado todas las modificaciones, "
+            "correcciones y derogaciones parciales publicadas hasta la fecha; el texto es "
+            "fiable para aplicar directamente. "
+            "'Desactualizado' — existe al menos una modificación publicada en el BOE que aún "
+            "no ha sido integrada en el texto único por el personal técnico; el texto puede "
+            "estar incompleto. "
+            "Filtra por 'Finalizado' cuando necesites texto normativo listo para análisis "
+            "o aplicación; advierte al usuario cuando el estado sea 'Desactualizado'."
+        ),
         examples=["Finalizado"],
         json_schema_extra={"x_flags": ["metadatos.estado_consolidacion"]},
     )
+
     url_eli: str | None = Field(
         None,
-        description="URL ELI de la norma",
+        description=(
+            "URL canónica de la norma según el estándar European Legislation Identifier (ELI), "
+            "adoptado por España para identificar unívocamente las normas a nivel europeo. "
+            "Sigue el patrón https://www.boe.es/eli/{país}/{tipo}/{fecha}/{número}. "
+            "Es el identificador más estable e interoperable para citar la norma en contextos "
+            "jurídicos formales, intercambio de datos entre administraciones o linked data."
+        ),
         examples=["https://www.boe.es/eli/es/l/2015/10/01/39"],
         json_schema_extra={"x_flags": ["metadatos.url_eli"]},
     )
+
     url_html_consolidada: str | None = Field(
         None,
-        description="URL HTML de la versión consolidada",
+        description=(
+            "URL de acceso al texto consolidado en formato HTML en la sede electrónica del BOE "
+            "(https://www.boe.es/buscar/act.php?id={id}). Apunta siempre a la versión más "
+            "actualizada disponible, no a una versión histórica concreta. Úsala para enlazar "
+            "al usuario directamente al texto legal completo o para obtener el contenido "
+            "mediante scraping/fetch cuando se necesite el articulado íntegro."
+        ),
         examples=["https://www.boe.es/buscar/act.php?id=BOE-A-2015-10565"],
         json_schema_extra={"x_flags": ["metadatos.url_html_consolidada"]},
     )
+
     materias_codigos: list[int] | None = Field(
         None,
-        description="Códigos de materias temáticas",
+        description=(
+            "Lista de códigos numéricos de las materias temáticas asignadas a la norma por "
+            "los documentalistas del BOE, según el tesauro oficial de materias jurídicas "
+            "(p. ej. 1270 = Procedimiento administrativo, 1680 = Función pública). "
+            "Permite clasificar y agrupar normas por área de derecho. Usa estos códigos para "
+            "filtrar por materia de forma precisa y consistente; una norma puede tener "
+            "varias materias asignadas."
+        ),
         examples=[[1270, 1680]],
         json_schema_extra={"x_flags": ["analisis.materias"]},
     )
+
     materias: list[str] | None = Field(
         None,
-        description="Textos de materias temáticas",
+        description=(
+            "Denominaciones textuales de las materias temáticas asignadas a la norma, "
+            "correspondientes a los códigos de `materias_codigos` (p. ej. "
+            "['Procedimiento administrativo', 'Función pública']). Útil para mostrar "
+            "las categorías al usuario o para búsquedas por palabras clave temáticas. "
+            "Para filtros programáticos prefiere los códigos."
+        ),
         examples=[["Administración Pública"]],
         json_schema_extra={"x_flags": ["analisis.materias"]},
     )
+
     nota: str | None = Field(
         None,
-        description="Notas que aportan información adicional a la norma",
+        description=(
+            "Texto libre con observaciones editoriales o de contexto añadidas por los "
+            "documentalistas del BOE. Puede incluir: publicación paralela en otros boletines "
+            "oficiales (p. ej. 'Publicada también en el DOGC núm. 6958'), advertencias sobre "
+            "correcciones de errores, aclaraciones sobre el ámbito de aplicación territorial "
+            "u otras indicaciones relevantes que no caben en los campos estructurados. "
+            "Consúltalo cuando necesites contexto adicional sobre la publicación o el alcance "
+            "de la norma."
+        ),
         examples=["Publicada también en el DOGC núm. 6958"],
         json_schema_extra={"x_flags": ["analisis.notas"]},
     )

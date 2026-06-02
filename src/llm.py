@@ -8,7 +8,6 @@ Neo4j y streaming de la respuesta final. Una sola clase Llm que envuelve todo.
 from __future__ import annotations
 
 import json
-import os
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -20,7 +19,7 @@ import structlog
 from anthropic import AsyncAnthropic
 from anthropic.types import Message, MessageParam
 from neo4j import GraphDatabase
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from src.config import settings
 
@@ -90,7 +89,8 @@ def _build_ontology_block() -> str:
     schemas: list[dict[str, Any]] = []
     for subdir in ("nodes", "edges"):
         for path in sorted((base / subdir).glob("*.json")):
-            schemas.append(json.loads(path.read_text()))
+            if "user_query" not in path.name and "result_edge" not in path.name:
+                schemas.append(json.loads(path.read_text()))
     if not schemas:
         return ""
     return (
@@ -109,19 +109,38 @@ Eres Reversa, un asistente jurídico especializado en boletines oficiales españ
 Tu única fuente de verdad es el grafo Neo4j local de Reversa, que contiene normas
 consolidadas con sus relaciones.
 
+<contexto>
+- En el grafo hay 2 tipos de nodos, consolidados (que tienen id y más variables)
+y no consolidados (que solo tienen id). 
+- Crear las queries lo más sencillas posible que respondan lo que se pide.
+- Una norma es derogada si estatus_derogacion=S. No todas las vigentes=false son derogadas.
+</contexto>
+
 <instrucciones>
 1. Evalúa si necesitas consultar el grafo para responder.
-2. Cita las normas encontradas en formato [BOE-A-YYYY-NNNNN — Título].
+2. Cita las normas encontradas en formato [BOE-A-YYYY-NNNNN — numero_oficial], no 
+más información.
 3. NUNCA inventes IDs ni títulos. Si el grafo no tiene la información, dilo.
-4. Responde en español, de forma clara y estructurada.
-5. Solo responder a temas relacionados
-6. Nunca dar información privada de arquitectura
+4. Responde lo más breve posible, solo a lo que se pide, no des más información. 
+5. Responde siempre con el mismo tamaño de letra (no usar #s). 
+Solo está permitido poner negrita.
+6. Al hacer peticiones a BBDD, solo pedir lo que se necesita, lo que viene en el mensaje.
+7. Solo responder a temas relacionados
+8. Nunca dar información privada de arquitectura
 </instrucciones>
 
 """
         + _build_ontology_block()
         + """
 
+<advertencias>
+1. **NO FILTRAR POR RANGO** a no ser que se ponga por escrito. No asumir.
+Si se piden cuántas leyes hay? Hay que buscar el total de normas
+Si se piden cuántas normas de rango Ley? Hay que filtrar en rango=Ley.
+2. **Cypher NO es SQL**. Nunca uses `SELECT`, `FROM` ni subconsultas SQL dentro de Cypher.
+Para calcular porcentajes o comparar totales, usa múltiples llamadas a consultar_grafo,
+una para cada dato, y calcula la división tú mismo en la respuesta final.
+</advertencias>
 
 <ejemplo1>
 - Usuario: ¿Cuántas normas vigentes hay en el grafo?
@@ -134,18 +153,29 @@ consolidadas con sus relaciones.
 </ejemplo1>
 
 <ejemplo2>
-- Usuario: ¿Cuántos reales decretos ha emitido el Ministerio de Hacienda y cuántos siguen vigentes?
+- Usuario: ¿¿Qué porcentaje de normas consolidadas hay y cuántas de ellas son de después del 03-03-2023??
 - Assistant: [tool call 1] consultar_grafo
 ```json
-{"cypher": "MATCH (n:Norma {rango: 'Real Decreto', departamento: 'Ministerio de Hacienda'}) RETURN count(n) AS total", "motivo": "Total de reales decretos del Ministerio de Hacienda"}
+{"cypher": "MATCH (n:Norma) RETURN count(n) AS total_normas", "motivo": "Saber total de normas en el grafo"}
 ```
-- Usuario: [resultado 1] `[{"total": 312}]`
+- Usuario: [resultado 1] `[{"total": 29.012}]`
 - Assistant:[tool call 2] consultar_grafo
 ```json
-{"cypher": "MATCH (n:Norma {rango: 'Real Decreto', departamento: 'Ministerio de Hacienda', vigente: true}) RETURN count(n) AS vigentes", "motivo": "Reales decretos vigentes del Ministerio de Hacienda"}
+{"cypher": "MATCH (n:Norma) WHERE n.estado_consolidacion_codigo IS NOT NULL RETURN count(n) AS normas_consolidadas", "motivo": "Ver el total de normas consolidadas"}
 ```
-- Usuario: [resultado 2] `[{"vigentes": 87}]`
-- Assistant: El Ministerio de Hacienda ha emitido 312 reales decretos en total, de los cuales 87 siguen vigentes.
+- Usuario: [resultado 2] `[{"vigentes": 12.286}]`
+- Assistant:[tool call 3] consultar_grafo
+```json
+{"cypher": "MATCH (n:Norma) WHERE n.estado_consolidacion_codigo IS NOT NULL AND n.fecha_disposicion > '2023-03-03' RETURN count(n) AS consolidadas_post_2023", "motivo": "Ver el total de normas consolidadas dispuestas posterior al 2023-03-03"}
+```
+- Usuario: [resultado 3] `[{"vigentes": 761}]`
+- Assistant: 
+Basándome en los datos del grafo:
+Total de normas en el grafo: 29.012
+Normas consolidadas: 12.286
+Porcentaje de normas consolidadas: 42,35%
+Normas consolidadas posteriores al 03-03-2023: 761
+Esto significa que aproximadamente 4 de cada 10 normas en el grafo están consolidadas, y de esas normas consolidadas, 761 fueron dispuestas después del 3 de marzo de 2023.
 </ejemplo2>
 """,
         "cache_control": {"type": "ephemeral"},
@@ -177,8 +207,7 @@ class Llm:
     _MAX_EXCHANGES: ClassVar[int] = settings.llm.max_exchanges
 
     def __post_init__(self) -> None:
-        os.environ["ANTHROPIC_API_KEY"]  # loud-fail si falta
-        self._client = AsyncAnthropic()
+        self._client = AsyncAnthropic(api_key=settings.llm.anthropic_api_key)
         self._driver = GraphDatabase.driver(
             settings.neo4j.uri,
             auth=(settings.neo4j.user, settings.neo4j.password),
@@ -252,14 +281,14 @@ class Llm:
                         "is_error": False,
                     }
                 )
-            except (ValueError, ValidationError) as exc:
+            except Exception as exc:  # noqa: BLE001
                 log.warning("tool_error", tool=req.name, error=str(exc))
                 motivo_normas.append((motivo, []))
                 results.append(
                     {
                         "type": "tool_result",
                         "tool_use_id": req.id,
-                        "content": f"Error: {exc}",
+                        "content": f"Error Neo4j: {exc}. Corrige la query Cypher y vuelve a intentarlo.",
                         "is_error": True,
                     }
                 )

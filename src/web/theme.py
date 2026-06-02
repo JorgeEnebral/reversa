@@ -15,18 +15,20 @@ from __future__ import annotations
 from typing import Final
 
 # Color de relleno por tipo de nodo (kind).
-# Norma → verde claro: distingue legislación como el recurso principal del grafo.
-# UserQuery → azul: diferencia visualmente las consultas del usuario de las normas.
+# Norma → verde claro: legislación principal del grafo.
+# UserQuery → azul: consultas del usuario.
+# Stub → gris: nodos referenciados sin propiedades (solo id).
 NODE_COLORS: Final[dict[str, str]] = {
     "Norma": "#86efac",
     "UserQuery": "#2f6fb0",
+    "Stub": "#94a3b8",
 }
 
 # Color de borde (stroke) por tipo de nodo.
-# Más oscuro que el relleno para que los nodos tengan definición en fondos claros.
 NODE_BORDER_COLORS: Final[dict[str, str]] = {
     "Norma": "#22c55e",
     "UserQuery": "#1d4e79",
+    "Stub": "#64748b",
 }
 
 # Color para tipos de nodo no contemplados en NODE_COLORS.

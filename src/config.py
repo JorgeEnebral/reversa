@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Raíz del repositorio (reversa/). Ancla las rutas de la ontología de forma
@@ -165,12 +165,12 @@ class RelacionConfig(BaseModel):
 
 
 class Neo4jConfig(BaseModel):
-    """Conexión a Neo4j. NEO4J__PASSWORD se carga desde .env vía Settings."""
+    """Conexión a Neo4j. Credenciales cargadas desde .env vía Settings."""
 
     uri: str = "bolt://localhost:7687"
     user: str = "neo4j"
-    password: str = ""
-    database: str = "reversa"
+    password: str = ""  # sobreescribir con NEO4J__PASSWORD en .env
+    database: str = "neo4j"
 
 
 # --------------------------------------------------------------------------- #
@@ -179,11 +179,12 @@ class Neo4jConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """Config del cliente Anthropic. ANTHROPIC_API_KEY se lee en src/llm.py."""
+    """Config del cliente Anthropic. Credenciales y parámetros de comportamiento."""
 
+    anthropic_api_key: str = ""  # requerido: LLM__ANTHROPIC_API_KEY en .env
     model: str = "claude-haiku-4-5"
-    max_tokens: int = 1000
-    temperature: float = 0.2
+    max_tokens: int = 2_000
+    temperature: float = 0.0
     max_exchanges: int = (
         1  # Nº de exchanges completos (user→tools→answer) en el historial deslizante
     )
@@ -205,22 +206,23 @@ class WebConfig(BaseModel):
 class Settings(BaseSettings):
     """Configuración global. Cargada desde .env con prefijo doble-guión bajo.
 
-    Ejemplo de .env:
+    Secretos requeridos en .env (startup falla si faltan):
+        LLM__ANTHROPIC_API_KEY=sk-ant-...
+        NEO4J__PASSWORD=mysecret
+
+    Opcionales con defaults:
         NEO4J__URI=bolt://localhost:7687
         NEO4J__USER=neo4j
-        NEO4J__PASSWORD=mysecret
         NEO4J__DATABASE=reversa
 
     Attributes:
         parse: flags de parseo XML.
         relacion: codigos de relación a materializar como aristas.
         neo4j: conexión Neo4j.
-        ontology: rutas de la ontología.
-        llm: parámetros del LLM.
+        llm: parámetros del LLM (incluye anthropic_api_key).
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
         env_nested_delimiter="__",
         frozen=True,
         extra="ignore",
@@ -233,6 +235,15 @@ class Settings(BaseSettings):
     neo4j: Neo4jConfig = Neo4jConfig()
     llm: LLMConfig = LLMConfig()
     web: WebConfig = WebConfig()
+
+    @model_validator(mode="after")
+    def _check_secrets(self) -> Settings:
+        """Falla en startup si faltan secretos requeridos."""
+        if not self.llm.anthropic_api_key:
+            raise ValueError("LLM__ANTHROPIC_API_KEY es requerido en .env")
+        if not self.neo4j.password:
+            raise ValueError("NEO4J__PASSWORD es requerido en .env")
+        return self
 
 
 load_dotenv()

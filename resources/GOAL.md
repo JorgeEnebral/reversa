@@ -40,28 +40,32 @@ judgment: what you prioritise, what you decide not to build, and why.
 
 #### 1 Diagnosis: which laws have become unreadable?
 
-The Vice-Presidency wants the consolidation backlog: the laws amended so many times they are now
+(1) The Vice-Presidency wants the consolidation backlog: the laws amended so many times they are now
 incomprehensible even to lawyers. Give the top 5. These are the first candidates for a clean rewrite.
-(The 5 norms most amended by other norms.)
+
+(1.1) (The 5 norms most amended by other norms.)
 
 #### 2 Root cause: who made the mess?
 
-Show the Council how laws become unreadable. Find the “omnibus” laws — single acts that silently
+(2) Show the Council how laws become unreadable. Find the “omnibus” laws — single acts that silently
 rewrote dozens of unrelated statutes at once. Name the top 5 worst offenders. The Council wants to see the pattern, not just the symptom.
-(The 5 norms that amend the most other norms.)
+
+(2.1) (The 5 norms that amend the most other norms.)
 
 #### 3 The rot: how much of the statute book rests on dead law?
 
-Find every law still in force that cites a law already repealed. Quantify it: what fraction of live Spanish law rests on legal ground that no longer exists? Then surface the top 5 most-cited ghosts — the dead laws still propping up the most live statutes.
-(The percentage of in-force norms that cite at least one repealed norm, and the 5 repealed norms most
+(3) Find every law still in force that cites a law already repealed. Quantify it: what fraction of live Spanish law rests on legal ground that no longer exists? Then surface the top 5 most-cited ghosts — the dead laws still propping up the most live statutes.
+
+(3.1) (The percentage of in-force norms that cite at least one repealed norm, and the 5 repealed norms most
 cited by in-force norms.)
 
 #### 4 The scalpel: the unfinished repeal.
 
-In 2015 the Council repealed Ley 30/1992, the act on the Legal Regime of Public Administrations and
+(4) In 2015 the Council repealed Ley 30/1992, the act on the Legal Regime of Public Administrations and
 Common Administrative Procedure, and replaced it with Leyes 39/2015 and 40/2015. But the cleanup
 was never finished: dozens of laws still in force keep citing Ley 30/1992 as if it existed. The Council wants to close the operation — update those orphan references — and needs the worklist. Compute the blast radius of Ley 30/1992: the laws still in force that cite it directly.
-(The list of in-force norms that cite Ley 30/1992 directly.)
+
+(4.1) (The list of in-force norms that cite Ley 30/1992 directly.)
 
 ---
 

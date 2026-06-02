@@ -1,5 +1,5 @@
 
-The objetive is to achieve GOAL.md file. 
+The objetive is to achieve resources/GOAL.md file. 
 All plans are saved in plans/ directory
 
 ---

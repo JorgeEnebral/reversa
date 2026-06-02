@@ -361,6 +361,8 @@ class Preprocesador:
         como stub {id} (nodo sin propiedades). rel_type ya está validado como
         valor en codigos_a_relacion.
         """
+        if not src_id or not dst_id:
+            return
         query = (
             f"MERGE (a:Norma {{id: $src}})"
             f" MERGE (b:Norma {{id: $dst}})"
@@ -406,6 +408,8 @@ class Preprocesador:
         codigos = self._cfg.relacion.codigos_a_relacion
 
         for ref in norma.referencias_anteriores:
+            if not ref.id_norma:
+                continue
             rel = codigos.get(ref.relacion_codigo)
             if rel:
                 self._upsert_relacion(
@@ -416,6 +420,8 @@ class Preprocesador:
                     self._anteriores_faltantes.add(ref.id_norma)
 
         for ref in norma.referencias_posteriores:
+            if not ref.id_norma:
+                continue
             if ref.id_norma in raw_ids:
                 continue
             rel = codigos.get(ref.relacion_codigo)

@@ -9,9 +9,43 @@ cuando el usuario solo está explorando visualmente el grafo.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
+from datetime import datetime
 from typing import Any
 
 from nicegui import ui
+
+# Orden de visualización por tipo de nodo.
+_NORMA_FIELD_ORDER: list[str] = [
+    "vigente",
+    "fecha_disposicion",
+    "fecha_publicacion",
+    "fecha_vigencia",
+    "rango",
+    "numero_oficial",
+    "titulo",
+    "vigencia_agotada",
+    "estatus_derogacion",
+    "estatus_anulacion",
+    "estado_consolidacion",
+]
+
+_USERQUERY_FIELD_ORDER: list[str] = [
+    "user_id",
+    "user_prompt",
+    "answer",
+    "bbdd_query",
+    "ts",
+]
+
+_FIELD_ORDER_BY_KIND: dict[str, list[str]] = {
+    "Norma": _NORMA_FIELD_ORDER,
+    "Stub": _NORMA_FIELD_ORDER,
+    "UserQuery": _USERQUERY_FIELD_ORDER,
+}
+
+# Campos internos de Sigma que no son datos de negocio.
+_SIGMA_EDGE_KEYS: frozenset[str] = frozenset({"label", "size", "color", "type"})
 
 
 class InfoPanel:
@@ -19,10 +53,16 @@ class InfoPanel:
 
     Args:
         width: Ancho del panel en píxeles.
+        on_show_neighbors: Corrutina opcional llamada con el dict del nodo
+            al pulsar «Mostrar vecinos».
     """
 
-    def __init__(self, width: int = 300) -> None:
-        self._width = width
+    def __init__(
+        self,
+        width: int = 400,
+        on_show_neighbors: Callable[[dict[str, Any], str], Coroutine[Any, Any, None]] | None = None,
+    ) -> None:
+        self._on_show_neighbors = on_show_neighbors
         with ui.card().style(
             f"width:{width}px;height:100%;overflow-y:auto;"
             "background:var(--surface);color:var(--text);"
@@ -31,42 +71,77 @@ class InfoPanel:
         ) as self._card:
             with ui.row().classes("w-full justify-between items-center"):
                 self._title = ui.label("Selecciona un elemento").style(
-                    "font-weight:700;font-size:1.05em;color:var(--text);"
+                    "font-weight:700;font-size:1.05em;color:var(--text);word-break:break-all;"
                 )
                 ui.button("✕", on_click=self.clear).props("flat dense").style(
-                    "color:var(--text-muted);"
+                    "color:var(--text-muted);flex-shrink:0;"
                 )
             self._content = ui.column().classes("w-full gap-1")
-        # Oculto al inicio: set_visibility(False) no elimina el espacio en el DOM,
-        # pero el panel tiene width fijo, así que el layout no cambia al abrirlo.
         self._card.set_visibility(False)
 
     def show_node(self, node: dict[str, Any]) -> None:
         """Muestra los atributos de un nodo en el panel.
 
+        El título es siempre el id del nodo. Los campos se presentan en el
+        orden definido por ``_FIELD_ORDER_BY_KIND`` según el tipo de nodo.
+
         Args:
-            node: Dict con ``"id"`` y ``"attrs"`` (properties del nodo Neo4j).
+            node: Dict con ``"id"``, ``"kind"``, ``"label"`` y ``"attrs"``.
         """
+        node_id: str = node.get("id", "")
         self._card.set_visibility(True)
-        self._title.set_text(f"Nodo: {node.get('id', '')[:30]}")
+        self._title.set_text(node_id)
         self._content.clear()
         with self._content:
-            _render_attrs(node.get("attrs", {}))
+            kind = node.get("kind", "")
+            if kind:
+                _kv("Tipo", kind)
+            _kv("id", node_id)
+
+            attrs = node.get("attrs", {})
+            shown: set[str] = {"id", "id_nodo"}  # id_nodo ya se muestra como "id"
+            field_order = _FIELD_ORDER_BY_KIND.get(kind, _NORMA_FIELD_ORDER)
+            for key in field_order:
+                val = attrs.get(key)
+                if val is not None:
+                    _kv(key, val)
+                    shown.add(key)
+            for k, v in attrs.items():
+                if k not in shown and v is not None and not k.endswith("_codigo"):
+                    _kv(k, v)
+
+            if self._on_show_neighbors:
+                captured = dict(node)
+                with ui.row().style("margin-top:10px;gap:4px;flex-wrap:wrap;"):
+                    for label, direction in [
+                        ("Vecinos", "both"),
+                        ("Entrantes", "in"),
+                        ("Salientes", "out"),
+                    ]:
+                        ui.button(
+                            label,
+                            on_click=lambda n=captured, d=direction: self._on_show_neighbors(n, d),
+                        ).props("flat dense").style("color:var(--brand);font-size:0.85em;")
 
     def show_edge(self, edge: dict[str, Any]) -> None:
         """Muestra los atributos de una arista en el panel.
 
+        Muestra tipo, atributos de negocio, nodo origen y nodo destino.
+
         Args:
-            edge: Dict con ``"id"``, ``"src"``, ``"dst"`` y ``"attrs"``.
+            edge: Dict con ``"type"``, ``"src"``, ``"dst"`` y ``"attrs"``.
         """
+        edge_type: str = edge.get("type", "")
         self._card.set_visibility(True)
-        label = edge.get("attrs", {}).get("label", edge.get("id", ""))
-        self._title.set_text(f"Arista: {label}")
+        self._title.set_text(f"Arista: {edge_type}")
         self._content.clear()
         with self._content:
-            ui.label(f"Origen: {edge.get('src', '')}").style("font-size:0.85em;")
-            ui.label(f"Destino: {edge.get('dst', '')}").style("font-size:0.85em;")
-            _render_attrs(edge.get("attrs", {}))
+            _kv("Tipo", edge_type)
+            for k, v in edge.get("attrs", {}).items():
+                if v is not None and not k.endswith("_codigo") and k not in _SIGMA_EDGE_KEYS:
+                    _kv(k, v)
+            _kv("Origen", edge.get("src", ""))
+            _kv("Destino", edge.get("dst", ""))
 
     def clear(self) -> None:
         """Oculta el panel y limpia su contenido."""
@@ -74,20 +149,33 @@ class InfoPanel:
         self._content.clear()
 
 
-def _render_attrs(attrs: dict[str, Any]) -> None:
-    """Renderiza pares clave-valor como etiquetas dentro del panel.
-
-    Omite atributos ``None`` y los campos ``*_codigo`` (identificadores
-    internos de relación del BOE que no aportan valor al usuario final).
+def _format_ts(raw: Any) -> str:
+    """Formatea un timestamp Neo4j como ``DD-MM-AAAA : HH:MM:SS``.
 
     Args:
-        attrs: Propiedades del nodo o arista extraídas de Neo4j.
+        raw: Valor del campo ``ts`` (string ISO serializado por el driver Neo4j).
+
+    Returns:
+        Timestamp formateado o el valor original como string si no se puede parsear.
     """
-    for key, value in attrs.items():
-        if value is None:
-            continue
-        # Los campos *_codigo son enteros de referencia interna del BOE (p.ej.
-        # codigo_relacion=270); se omiten porque son opacos para el usuario.
-        if key.endswith("_codigo"):
-            continue
-        ui.label(f"{key}: {value}").style("font-size:0.82em;word-break:break-all;")
+    s = str(raw)
+    try:
+        dt = datetime.fromisoformat(s[:19].replace(" ", "T"))
+        return dt.strftime("%d-%m-%Y : %H:%M:%S")
+    except ValueError:
+        return s
+
+
+def _kv(key: str, value: Any) -> None:
+    """Renderiza un par clave-valor con la clave en negrita.
+
+    Aplica formato especial al campo ``ts`` (timestamp).
+
+    Args:
+        key: Nombre del campo (en negrita).
+        value: Valor a mostrar.
+    """
+    display = _format_ts(value) if key == "ts" else str(value)
+    ui.html(f'<span style="font-weight:700;">{key}:</span><span> {display}</span>').style(
+        "font-size:0.92em;word-break:break-all;display:block;"
+    )

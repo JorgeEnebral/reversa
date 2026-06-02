@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.llm import (
-    _BOE_ID_RE,
+    _ID_RE,
     _WRITE_RE,
     ConsultarGrafoArgs,
     Llm,
@@ -214,11 +214,30 @@ class TestBucleToolUse:
 
     @pytest.mark.asyncio
     async def test_guardar_interaccion_tras_stream(self, llm: Llm) -> None:
-        """guardar_interaccion se llama exactamente una vez al finalizar."""
-        create_resp = MagicMock()
-        create_resp.stop_reason = "end_turn"
-        create_resp.content = []
-        llm._client.messages.create = AsyncMock(return_value=create_resp)
+        """guardar_interaccion se llama una vez con los IDs extraídos de los tool_results."""
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.id = "tu_1"
+        tool_block.name = "consultar_grafo"
+        tool_block.input = {"cypher": "MATCH (n:Norma) RETURN n.id", "motivo": "buscar norma"}
+
+        resp_tool_use = MagicMock()
+        resp_tool_use.stop_reason = "tool_use"
+        resp_tool_use.content = [tool_block]
+
+        resp_final = MagicMock()
+        resp_final.stop_reason = "end_turn"
+        resp_final.content = []
+
+        # Primera llamada: tool_use; segunda: end_turn
+        llm._client.messages.create = AsyncMock(side_effect=[resp_tool_use, resp_final])
+
+        # El resultado de la query contiene el ID de la norma
+        session_mock = MagicMock()
+        session_mock.__enter__ = MagicMock(return_value=session_mock)
+        session_mock.__exit__ = MagicMock(return_value=False)
+        session_mock.run.return_value = [MagicMock(data=lambda: {"id": "BOE-A-2015-10565"})]
+        llm._driver.session.return_value = session_mock
 
         stream_ctx = AsyncMock()
         stream_ctx.__aenter__ = AsyncMock(return_value=stream_ctx)
@@ -233,28 +252,29 @@ class TestBucleToolUse:
             pass
 
         guardar_mock.assert_called_once()
-        _, _, answer, norma_ids = guardar_mock.call_args.args
-        assert "BOE-A-2015-10565" in norma_ids
+        _, _, _answer, motivo_normas = guardar_mock.call_args.args
+        all_ids = [nid for _motivo, ids in motivo_normas for nid in ids]
+        assert "BOE-A-2015-10565" in all_ids
 
 
 # ── Tests de extracción de IDs BOE ────────────────────────────────────────
 
 
 class TestBoeidRe:
-    """Verifica la regex de extracción de IDs BOE del texto libre."""
+    """Verifica la regex de extracción de IDs de boletines del texto libre."""
 
     def test_extrae_id_valido(self) -> None:
         text = "Ver [BOE-A-2015-10565 — Ley 39/2015]."
-        assert _BOE_ID_RE.findall(text) == ["BOE-A-2015-10565"]
+        assert _ID_RE.findall(text) == ["BOE-A-2015-10565"]
 
     def test_extrae_multiples_ids(self) -> None:
         text = "BOE-A-1992-26318 y BOE-A-2015-10566 son relevantes."
-        ids = _BOE_ID_RE.findall(text)
+        ids = _ID_RE.findall(text)
         assert "BOE-A-1992-26318" in ids
         assert "BOE-A-2015-10566" in ids
 
     def test_ignora_texto_sin_ids(self) -> None:
-        assert _BOE_ID_RE.findall("Sin normas concretas.") == []
+        assert _ID_RE.findall("Sin normas concretas.") == []
 
 
 # ── Tests de historial deslizante ─────────────────────────────────────────

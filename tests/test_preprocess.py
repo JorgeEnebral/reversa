@@ -313,7 +313,7 @@ def test_render_md_norma_vigente_si_estatus_activos() -> None:
         )
     )
     md = _norma_md(flags)
-    assert "vigente" in md
+    assert "| vigente |" in md
 
 
 def test_render_md_norma_vigente_ausente_si_estatus_incompleto() -> None:
@@ -326,7 +326,7 @@ def test_render_md_norma_vigente_ausente_si_estatus_incompleto() -> None:
         )
     )
     md = _norma_md(flags)
-    assert "vigente" not in md
+    assert "| vigente |" not in md
 
 
 def test_render_md_edge_contiene_rel_type() -> None:

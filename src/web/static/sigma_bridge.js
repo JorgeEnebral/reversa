@@ -19,6 +19,19 @@
 window._sigmaInstance = null;
 
 /**
+ * Mapa id→{id, kind, label, attrs} con los datos originales (Neo4j) de cada
+ * nodo. Permite devolver a Python todos los campos al hacer click, en lugar
+ * de solo los atributos Sigma (x, y, size, color).
+ */
+window._nodeData = {};
+
+/**
+ * Mapa edgeKey→{src, dst, type, attrs} con los datos originales de cada arista.
+ * Permite devolver a Python tipo y atributos completos al hacer click en una arista.
+ */
+window._edgeData = {};
+
+/**
  * Almacena el último evento de click del grafo.
  * Se resetea a null tras cada lectura para que _poll_clicks de Python lo
  * consuma exactamente una vez por evento.
@@ -58,40 +71,64 @@ window.initSigma = function (graphData) {
     var container = document.getElementById("sigma-canvas");
     if (!container) return "error:no-container";
 
-    // graphology.Graph con multi:true permite aristas paralelas (una norma puede
-    // citar a otra varias veces con distintos textos) sin lanzar errores.
-    var graph = new graphology.Graph({ multi: true });
+    // Grafo dirigido con multi:true para permitir aristas paralelas.
+    var graph = new graphology.Graph({ multi: true, type: "directed" });
+
+    // Limpiar datos previos al reinicializar.
+    window._nodeData = {};
+    window._edgeData = {};
 
     // --- Nodos ---
-    (graphData.nodes || []).forEach(function (n) {
+    // Posición inicial en elipse para que ForceAtlas2 converja desde una
+    // distribución circular (evita el aspecto de cuadrado en zoom-out).
+    var nodes = graphData.nodes || [];
+    nodes.forEach(function (n) {
       // hasNode evita duplicados; pueden llegar si el mismo nodo aparece en
       // múltiples aristas dentro del _MAX_EDGES de graph_repo.
       if (!graph.hasNode(n.id)) {
+        // Posición inicial uniforme dentro de un círculo (no solo en la
+        // circunferencia): sqrt(rand) distribuye el radio uniformemente en área.
+        var angle = Math.random() * 2 * Math.PI;
+        var r = Math.sqrt(Math.random()) * 100;
         graph.addNode(n.id, {
           label: n.label || n.id,
-          // Posición inicial aleatoria; ForceAtlas2 la reemplazará inmediatamente.
-          x: Math.random() * 200 - 100,
-          y: Math.random() * 200 - 100,
+          x: Math.cos(angle) * r,
+          y: Math.sin(angle) * r,
           // UserQuery más grande para distinguirlo visualmente de las normas.
           size: n.kind === "UserQuery" ? 10 : 5,
-          // Color ya resuelto por Python (theme.py); el JS no hardcodea colores.
+          // Color ya resuelto por Python (theme.py).
           color: n.color || "#94a3b8",
         });
+        // Guardar datos originales para devolverlos en el evento click.
+        window._nodeData[n.id] = {
+          id: n.id,
+          kind: n.kind || "",
+          label: n.label || n.id,
+          attrs: n.attrs || {},
+        };
       }
     });
 
     // --- Aristas ---
     (graphData.edges || []).forEach(function (e) {
       try {
-        graph.addEdge(e.src, e.dst, {
+        var edgeKey = graph.addDirectedEdge(e.src, e.dst, {
           label: e.type,
-          size: 1,
+          size: 2,
           color: e.color || "#111111",
+          type: "arrow",
         });
+        // Guardar datos originales para devolverlos en el evento click.
+        window._edgeData[edgeKey] = {
+          src: e.src,
+          dst: e.dst,
+          type: e.type || "",
+          attrs: e.attrs || {},
+        };
       } catch (_) {
-        // addEdge lanza si src o dst no existen en el grafo (puede ocurrir si
-        // Neo4j devuelve una arista cuyo nodo fue filtrado en otra parte de la
-        // query). Se ignora silenciosamente para no interrumpir el rendering.
+        // addDirectedEdge lanza si src o dst no existen en el grafo (puede
+        // ocurrir si Neo4j devuelve una arista cuyo nodo fue filtrado). Se
+        // ignora silenciosamente para no interrumpir el rendering.
       }
     });
 
@@ -119,8 +156,15 @@ window.initSigma = function (graphData) {
       renderEdgeLabels: false, // con miles de aristas las etiquetas son ilegibles
       defaultNodeColor: "#94a3b8",
       defaultEdgeColor: "#111111",
+      defaultEdgeType: "arrow", // aristas dirigidas con punta de flecha
+      enableEdgeClickEvents: true, // necesario en Sigma v2 para que clickEdge dispare
+      enableEdgeHoverEvents: false,
+      enableEdgeWheelEvents: false,
       labelColor: { color: "#13283d" },
       labelFont: "Inter, sans-serif",
+      // Proporciones de la punta de flecha (por defecto 2.5 y 1.5).
+      arrowHeadLengthThicknessRatio: 4,
+      arrowHeadWidthLengthRatio: 1,
     });
 
     // --- Eventos de click ---
@@ -128,23 +172,31 @@ window.initSigma = function (graphData) {
     // sigma_canvas.py cada 500 ms. El consumo es "destructivo": getLastClick()
     // resetea el valor, por lo que cada click se procesa exactamente una vez.
     window._sigmaInstance.on("clickNode", function (e) {
-      var node = e.node;
+      var nodeId = e.node;
+      var data = window._nodeData[nodeId] || {
+        id: nodeId,
+        kind: "",
+        label: nodeId,
+        attrs: {},
+      };
       window._lastClick = {
-        node: { id: node, attrs: graph.getNodeAttributes(node) },
+        node: { id: data.id, kind: data.kind, label: data.label, attrs: data.attrs },
         edge: null,
       };
     });
 
     window._sigmaInstance.on("clickEdge", function (e) {
-      var edge = e.edge;
-      var extremities = graph.extremities(edge);
+      var edgeId = e.edge;
+      var data = window._edgeData[edgeId];
+      var extremities = graph.extremities(edgeId);
       window._lastClick = {
         node: null,
         edge: {
-          id: edge,
-          src: extremities[0],
-          dst: extremities[1],
-          attrs: graph.getEdgeAttributes(edge),
+          id: edgeId,
+          src: data ? data.src : extremities[0],
+          dst: data ? data.dst : extremities[1],
+          type: data ? data.type : "",
+          attrs: data ? data.attrs : {},
         },
       };
     });
@@ -180,5 +232,7 @@ window.clearGraph = function () {
     window._sigmaInstance.kill();
     window._sigmaInstance = null;
   }
+  window._nodeData = {};
+  window._edgeData = {};
   window._lastClick = { node: null, edge: null };
 };
